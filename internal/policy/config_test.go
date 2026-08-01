@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/reqmatrix/internal/testsupport"
+	"github.com/sofired/matrix-service/internal/testsupport"
 )
 
 func loadFixtureConfig(t *testing.T) *Config {

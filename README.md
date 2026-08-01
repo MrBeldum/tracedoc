@@ -35,13 +35,13 @@ Pin an exact release and run it through the Go module system, which verifies
 the download against the Go checksum database:
 
 ```sh
-go run github.com/sofired/reqmatrix/cmd/reqmatrix@v0.1.0 version
+go run github.com/sofired/matrix-service/cmd/reqmatrix@v0.1.0 version
 ```
 
 Or install a verified binary onto your PATH:
 
 ```sh
-go install github.com/sofired/reqmatrix/cmd/reqmatrix@v0.1.0
+go install github.com/sofired/matrix-service/cmd/reqmatrix@v0.1.0
 ```
 
 Building or running the tool requires Go 1.26 or later (`go.mod` declares

@@ -1,7 +1,7 @@
 package matrix
 
 import (
-	"github.com/sofired/reqmatrix/internal/strictjson"
+	"github.com/sofired/matrix-service/internal/strictjson"
 )
 
 // Load reads and strictly decodes the matrix document at path. It performs

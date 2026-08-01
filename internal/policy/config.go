@@ -12,8 +12,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/sofired/reqmatrix/internal/matrix"
-	"github.com/sofired/reqmatrix/internal/strictjson"
+	"github.com/sofired/matrix-service/internal/matrix"
+	"github.com/sofired/matrix-service/internal/strictjson"
 )
 
 // ConfigVersion is the configuration schema this release of the tool reads.

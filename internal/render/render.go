@@ -15,7 +15,7 @@ import (
 	"text/template"
 	"text/template/parse"
 
-	"github.com/sofired/reqmatrix/internal/matrix"
+	"github.com/sofired/matrix-service/internal/matrix"
 )
 
 // MaxTemplateBytes bounds the size of a consumer-supplied template file.

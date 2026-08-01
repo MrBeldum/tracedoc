@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/reqmatrix/internal/matrix"
-	"github.com/sofired/reqmatrix/internal/testsupport"
+	"github.com/sofired/matrix-service/internal/matrix"
+	"github.com/sofired/matrix-service/internal/testsupport"
 )
 
 func fixtureOptions() Options {

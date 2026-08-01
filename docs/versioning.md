@@ -55,7 +55,7 @@ Pin an exact version in the invocation (or in a `go.mod` of a dedicated
 tools module) and let the Go toolchain verify it:
 
 ```sh
-go run github.com/sofired/reqmatrix/cmd/reqmatrix@v0.1.0 ...
+go run github.com/sofired/matrix-service/cmd/reqmatrix@v0.1.0 ...
 ```
 
 - `go run`/`go install` with an explicit `@vX.Y.Z` resolve through the

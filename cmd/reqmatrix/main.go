@@ -10,10 +10,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/sofired/reqmatrix/internal/fsio"
-	"github.com/sofired/reqmatrix/internal/matrix"
-	"github.com/sofired/reqmatrix/internal/policy"
-	"github.com/sofired/reqmatrix/internal/render"
+	"github.com/sofired/matrix-service/internal/fsio"
+	"github.com/sofired/matrix-service/internal/matrix"
+	"github.com/sofired/matrix-service/internal/policy"
+	"github.com/sofired/matrix-service/internal/render"
 )
 
 // toolVersion is the released tool version. The release process keeps it in
