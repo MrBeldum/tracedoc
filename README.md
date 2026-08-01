@@ -93,6 +93,31 @@ document:
    the target branch head).
 3. `render -check` to reject a stale committed Markdown companion.
 
+## Concurrent changes: protect the merge, not just the pull request
+
+`compare` proves continuity between exactly two snapshots. Two concurrent
+pull requests can each be green against the same baseline and still
+conflict with each other — most commonly by **allocating the same new
+stable ID** for different obligations. If such a pair merges without
+re-testing, the default branch ends up with a duplicate ID; the push-run
+`validate` turns the branch red, and because `compare` validates its
+baseline, **every later comparison fails until the branch is fixed by an
+administrator merging a revert or correction past the failing check**.
+Prevention is much cheaper than that cure. Consumers should enable one of:
+
+- **"Require branches to be up to date before merging"** — the second pull
+  request must rebase after the first lands, and the re-run catches the
+  collision. Simplest; fine at low change volume.
+- **A merge queue** — CI runs against the exact tree the default branch
+  will become (current branch head plus every queued pull request), so
+  cross-PR collisions are caught before anything merges, with no manual
+  rebasing.
+
+As hygiene, remember stable IDs are stable, not sequential: nothing
+requires "the next number," so allocating from per-section or
+per-workstream ranges makes concurrent collisions rare even before merge
+protection catches them.
+
 ## Documentation
 
 - [docs/schema.md](docs/schema.md) — shared document contract, linking to

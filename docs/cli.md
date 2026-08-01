@@ -98,6 +98,20 @@ baseline and the candidate; continuity across history follows only when
 every accepted revision was compared against the previously accepted
 baseline (for example, by running `compare` in CI for every change).
 
+Two consequences for repository configuration:
+
+- **Concurrent changes**: two branches can each pass `compare` against the
+  same baseline yet conflict with each other (for example, both allocating
+  the same new stable ID). Require branches to be up to date before
+  merging, or use a merge queue, so the combined result is what CI tests
+  (see the README's "Concurrent changes" section).
+- **Recovery from an invalid accepted baseline**: `compare` validates the
+  baseline and exits `1` if it is invalid, so a default branch that
+  acquires an invalid document blocks every subsequent comparison —
+  including the fix. This is deliberate (silently skipping the comparison
+  would disable the gate exactly when it matters); repair requires an
+  administrator to merge the revert or correction past the failing check.
+
 ## `matrix version`
 
 Prints the tool version plus the CLI contract, per-document schema, and
