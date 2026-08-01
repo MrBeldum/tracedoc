@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "matrix_version": "0.2.0",
+  "last_reviewed": "2026-07-30",
+  "standards": [
+    {
+      "key": "EXAMPLE-CORE",
+      "title": "Example Core Protocol 1.0",
+      "uri": "https://standards.example.org/core/1.0"
+    },
+    {
+      "key": "RFCX",
+      "title": "Example Transport Requirements",
+      "uri": "https://www.rfc-editor.org/rfc/rfc9999"
+    },
+    {
+      "key": "LOCAL-PLAN",
+      "title": "Project plan commitments",
+      "uri": "../plan.md"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "EXCORE-001",
+      "title": "Reject unauthenticated token requests",
+      "standard": "EXAMPLE-CORE",
+      "citations": [
+        {
+          "standard": "EXAMPLE-CORE",
+          "clause": "3.1",
+          "uri": "https://standards.example.org/core/1.0#section-3.1"
+        },
+        {
+          "standard": "RFCX",
+          "clause": "2.2",
+          "uri": "https://www.rfc-editor.org/rfc/rfc9999#section-2.2"
+        }
+      ],
+      "interpretation": "The token endpoint must reject requests without valid client authentication.",
+      "applicability": "applicable",
+      "owner": { "milestone": "M1", "issue": "#10", "workstream": "Protocol" },
+      "planned_verification": {
+        "levels": ["unit", "adversarial"],
+        "evidence": ["token endpoint negative suite"]
+      },
+      "evidence_status": "planned",
+      "traceability": { "adrs": [], "threats": [], "risks": ["R3"] }
+    },
+    {
+      "id": "EXCORE-002",
+      "title": "Support cross-context delegation",
+      "standard": "EXAMPLE-CORE",
+      "citations": [
+        {
+          "standard": "EXAMPLE-CORE",
+          "clause": "7.4",
+          "uri": "https://standards.example.org/core/1.0#section-7.4"
+        }
+      ],
+      "interpretation": "Delegation across isolation contexts is postponed until the platform milestone.",
+      "applicability": "deferred",
+      "applicability_rationale": "Delegation is out of scope before M10.",
+      "owner": { "milestone": "M10", "issue": null, "workstream": "Platform" },
+      "planned_verification": {
+        "levels": ["integration", "adversarial"],
+        "evidence": ["cross-context adversarial suite"]
+      },
+      "evidence_status": "deferred",
+      "traceability": { "adrs": [], "threats": [], "risks": ["R12"] }
+    },
+    {
+      "id": "RFCX-001",
+      "title": "Serve metadata over TLS",
+      "standard": "RFCX",
+      "citations": [
+        {
+          "standard": "RFCX",
+          "clause": "4.1",
+          "uri": "https://www.rfc-editor.org/rfc/rfc9999#section-4.1"
+        }
+      ],
+      "interpretation": "All discovery metadata endpoints require TLS.",
+      "applicability": "applicable",
+      "owner": { "milestone": "M0", "issue": "#7", "workstream": "Platform" },
+      "planned_verification": {
+        "levels": ["integration"],
+        "evidence": ["metadata TLS integration test"]
+      },
+      "evidence_status": "in-progress",
+      "traceability": { "adrs": [], "threats": [], "risks": [] }
+    },
+    {
+      "id": "PLAN-001",
+      "title": "Record isolation boundaries before implementation",
+      "standard": "LOCAL-PLAN",
+      "citations": [
+        {
+          "standard": "LOCAL-PLAN",
+          "clause": "13.2",
+          "uri": "../plan.md#132-isolation"
+        }
+      ],
+      "interpretation": "Isolation boundaries are documented and reviewed before protocol work begins.",
+      "applicability": "applicable",
+      "owner": { "milestone": "M0", "issue": null, "workstream": "Platform" },
+      "planned_verification": {
+        "levels": ["documentation"],
+        "evidence": ["accepted isolation boundary record"]
+      },
+      "evidence_status": "planned",
+      "traceability": { "adrs": [], "threats": [], "risks": ["R6"] }
+    }
+  ],
+  "supersessions": [
+    {
+      "retired_id": "EXCORE-900",
+      "replacement_ids": ["EXCORE-001"],
+      "rationale": "Split authentication handling out of the combined endpoint requirement."
+    }
+  ]
+}
