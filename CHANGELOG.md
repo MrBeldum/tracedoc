@@ -30,7 +30,10 @@ tag, so the multi-document design ships from the start.
   coupling rules (rationale for accepted/transferred/avoided, mitigation
   evidence for mitigated, risk records for accepted), unconditional
   ownership, coverage rules for declared assets and boundaries, and the
-  shared append-only supersession ledger.
+  shared append-only supersession ledger. Ledger entries either name their
+  active replacements or carry an explicitly empty replacement list to
+  record withdrawal without a successor; withdrawals are immutable like
+  every other entry.
 - Cross-document link resolution: `validate -requirements` resolves a
   threat model's requirement links against a validated requirements
   matrix, rejecting unknown IDs and retired IDs (naming replacements);

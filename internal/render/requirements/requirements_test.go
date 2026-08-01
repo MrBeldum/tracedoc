@@ -125,6 +125,22 @@ func TestOwnershipIndexEscapesUntrustedContent(t *testing.T) {
 	}
 }
 
+func TestWithdrawalRendering(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Supersessions = append(doc.Supersessions, matrix.Supersession{
+		RetiredID:      "EXCORE-901",
+		ReplacementIDs: []string{},
+		Rationale:      "Withdrawn after the upstream draft was abandoned.",
+	})
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render withdrawal: %v", err)
+	}
+	if !strings.Contains(rendered, "| `EXCORE-901` | Withdrawn without successor |") {
+		t.Fatal("withdrawal row not rendered as expected")
+	}
+}
+
 func TestOwnershipIndex(t *testing.T) {
 	doc := fixtureDocument(t)
 	sections := newView(doc, fixtureOptions()).Ownership

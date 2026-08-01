@@ -49,6 +49,18 @@ func TestMatrixValidation(t *testing.T) {
 		t.Fatalf("fixture matrix is invalid:\n%s", errs)
 	}
 
+	// A withdrawal — a supersession with an explicitly empty replacement
+	// set — is a legal ledger entry.
+	withdrawal := fixtureDocument(t)
+	withdrawal.Supersessions = append(withdrawal.Supersessions, matrix.Supersession{
+		RetiredID:      "EXCORE-901",
+		ReplacementIDs: []string{},
+		Rationale:      "Obligation withdrawn after the upstream draft was abandoned.",
+	})
+	if errs := matrix.Validate(withdrawal, pol); len(errs) > 0 {
+		t.Fatalf("withdrawal supersession rejected:\n%s", errs)
+	}
+
 	tests := []struct {
 		name   string
 		want   string
@@ -239,6 +251,13 @@ func TestMatrixValidation(t *testing.T) {
 			want: `invalid risk "R13"`,
 			mutate: func(doc *matrix.Document) {
 				doc.Requirements[0].Traceability.Risks = []string{"R13"}
+			},
+		},
+		{
+			name: "missing replacement array",
+			want: "replacement_ids: expected an array",
+			mutate: func(doc *matrix.Document) {
+				doc.Supersessions[0].ReplacementIDs = nil
 			},
 		},
 		{

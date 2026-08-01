@@ -61,6 +61,38 @@ func TestCompareAcceptsLegalRevision(t *testing.T) {
 	}
 }
 
+func TestCompareAcceptsWithdrawal(t *testing.T) {
+	baseline := loadCompareFixture(t)
+	candidate := loadCompareFixture(t)
+	removeRequirement(&candidate, "EXCORE-002")
+	candidate.Supersessions = append(candidate.Supersessions, matrix.Supersession{
+		RetiredID:      "EXCORE-002",
+		ReplacementIDs: []string{},
+		Rationale:      "Cross-context delegation was withdrawn from scope entirely.",
+	})
+	candidate.DocumentVersion = "0.3.0"
+	candidate.LastReviewed = "2026-08-01"
+	if errs := matrix.Compare(baseline, candidate, allRules()); len(errs) > 0 {
+		t.Fatalf("withdrawal without successor rejected:\n%s", errs)
+	}
+
+	// A withdrawal is as immutable as any other supersession: later
+	// granting it replacements is a ledger edit.
+	next := loadCompareFixture(t)
+	removeRequirement(&next, "EXCORE-002")
+	next.Supersessions = append(next.Supersessions, matrix.Supersession{
+		RetiredID:      "EXCORE-002",
+		ReplacementIDs: []string{"EXCORE-001"},
+		Rationale:      "Cross-context delegation was withdrawn from scope entirely.",
+	})
+	next.DocumentVersion = "0.4.0"
+	next.LastReviewed = "2026-08-02"
+	errs := matrix.Compare(candidate, next, allRules())
+	if !strings.Contains(errs.Error(), `replacement IDs for retired ID "EXCORE-002" changed`) {
+		t.Fatalf("expected withdrawal mutation to be rejected, got:\n%s", errs)
+	}
+}
+
 func TestCompareRejections(t *testing.T) {
 	tests := []struct {
 		name   string

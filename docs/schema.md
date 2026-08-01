@@ -39,10 +39,14 @@ Both schemas share these members and semantics:
 | `schema_version`   | the schema version the document conforms to                  |
 | `document_version` | Semantic Versioning 2.0.0                                    |
 | `last_reviewed`    | RFC 3339 full date (`YYYY-MM-DD`)                            |
-| `supersessions`    | required array (may be empty), append-only across accepted revisions: `retired_id` (unique, not active), non-empty `replacement_ids` (all active), non-empty `rationale` |
+| `supersessions`    | required array (may be empty), append-only across accepted revisions: `retired_id` (unique, not active), required `replacement_ids` (all entries active; an explicitly empty array records withdrawal without a successor), non-empty `rationale` |
 
 Stable IDs (requirement and threat IDs) share the format
 `^[A-Z][A-Z0-9]*-[0-9]{3}$` and are never renumbered or reused; retiring
-one requires a retained supersession. The `compare` command enforces these
+one requires a retained supersession — naming its replacements when the
+obligation was split, merged, or replaced, or with an empty replacement
+list when it was withdrawn outright. Withdrawals are as immutable as any
+other ledger entry: later granting a withdrawn ID replacements is a
+rejected ledger edit. The `compare` command enforces these
 guarantees across revisions for both document types
 ([cli.md](cli.md#matrix-compare--config-path--baseline-path--candidate-path)).

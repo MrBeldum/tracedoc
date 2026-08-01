@@ -51,10 +51,11 @@ have `deferred` evidence status, a `not-applicable` requirement must have
 
 ### Known schema-1 limitation: chained supersessions
 
-Because `replacement_ids` must reference *active* IDs, retiring a
-requirement that is itself listed as a replacement in an older supersession
-cannot be expressed without editing that older entry — which the `compare`
-command rejects. Schema 1 therefore does not support retiring a replacement
-requirement. Lifting this restriction is a schema-2 candidate; until then,
-split or merge obligations without retiring IDs that appear in
-`replacement_ids`.
+Because every `replacement_ids` entry must reference an *active* ID,
+retiring a requirement that is itself listed as a replacement in an older
+supersession cannot be expressed without editing that older entry — which
+the `compare` command rejects. Schema 1 therefore does not support retiring
+a replacement requirement. Lifting this restriction is a schema-2
+candidate; until then, split or merge obligations without retiring IDs that
+appear in `replacement_ids`. (Withdrawing an obligation outright is fully
+supported: retire it with an empty replacement list and a rationale.)

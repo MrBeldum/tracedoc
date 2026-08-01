@@ -301,7 +301,10 @@ func (v *validator) supersession(index int, item Supersession) {
 	if check.Contains(v.activeIDs, item.RetiredID) {
 		v.Add(location+".retired_id", "retired ID is still active")
 	}
-	if v.StringList(location+".replacement_ids", item.ReplacementIDs, true) {
+	// An empty replacement set is legal and records withdrawal without a
+	// successor; the member itself stays required so withdrawal is always
+	// an explicit act.
+	if v.StringList(location+".replacement_ids", item.ReplacementIDs, false) {
 		for _, replacementID := range item.ReplacementIDs {
 			if !check.Contains(v.activeIDs, replacementID) {
 				v.Addf(location+".replacement_ids", "unknown active ID %q", replacementID)

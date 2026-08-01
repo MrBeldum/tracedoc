@@ -298,12 +298,16 @@ func (v *validator) requirementLink(location, id string) {
 		return
 	}
 	if check.Contains(v.requirements.Retired, id) {
-		v.Addf(
-			location,
-			"requirement %q is retired; replacements: %s",
-			id,
-			strings.Join(v.requirements.Replacements[id], ", "),
-		)
+		if replacements := v.requirements.Replacements[id]; len(replacements) > 0 {
+			v.Addf(
+				location,
+				"requirement %q is retired; replacements: %s",
+				id,
+				strings.Join(replacements, ", "),
+			)
+		} else {
+			v.Addf(location, "requirement %q was withdrawn without a replacement", id)
+		}
 		return
 	}
 	v.Addf(location, "unknown requirement %q", id)
@@ -319,7 +323,10 @@ func (v *validator) supersession(index int, item Supersession) {
 	if check.Contains(v.threatIDs, item.RetiredID) {
 		v.Add(location+".retired_id", "retired ID is still active")
 	}
-	if v.StringList(location+".replacement_ids", item.ReplacementIDs, true) {
+	// An empty replacement set is legal and records withdrawal without a
+	// successor; the member itself stays required so withdrawal is always
+	// an explicit act.
+	if v.StringList(location+".replacement_ids", item.ReplacementIDs, false) {
 		for _, replacementID := range item.ReplacementIDs {
 			if !check.Contains(v.threatIDs, replacementID) {
 				v.Addf(location+".replacement_ids", "unknown active ID %q", replacementID)

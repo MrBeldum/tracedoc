@@ -92,7 +92,7 @@
 
 {{if .Document.Supersessions}}| Retired ID | Replacement IDs | Rationale |
 | --- | --- | --- |
-{{range .Document.Supersessions}}| `{{.RetiredID}}` | {{inlineValues .ReplacementIDs}} | {{table .Rationale}} |
+{{range .Document.Supersessions}}| `{{.RetiredID}}` | {{if .ReplacementIDs}}{{inlineValues .ReplacementIDs}}{{else}}Withdrawn without successor{{end}} | {{table .Rationale}} |
 {{end}}{{else}}No threat IDs have been superseded.
 {{end}}
 ---

@@ -36,8 +36,11 @@ func fixtureIndex() *threats.RequirementIndex {
 		Active: map[string]struct{}{
 			"EXCORE-001": {}, "EXCORE-002": {}, "RFCX-001": {}, "PLAN-001": {},
 		},
-		Retired:      map[string]struct{}{"EXCORE-900": {}},
-		Replacements: map[string][]string{"EXCORE-900": {"EXCORE-001"}},
+		Retired: map[string]struct{}{"EXCORE-900": {}, "EXCORE-901": {}},
+		Replacements: map[string][]string{
+			"EXCORE-900": {"EXCORE-001"},
+			"EXCORE-901": {},
+		},
 	}
 }
 
@@ -61,6 +64,18 @@ func TestThreatModelValidation(t *testing.T) {
 	// fixture must still validate.
 	if errs := threats.Validate(fixtureDocument(t), pol, nil); len(errs) > 0 {
 		t.Fatalf("fixture threat model is invalid without index:\n%s", errs)
+	}
+
+	// A withdrawal — a supersession with an explicitly empty replacement
+	// set — is a legal ledger entry.
+	withdrawal := fixtureDocument(t)
+	withdrawal.Supersessions = append(withdrawal.Supersessions, threats.Supersession{
+		RetiredID:      "THRT-901",
+		ReplacementIDs: []string{},
+		Rationale:      "Threat withdrawn after the affected surface was removed.",
+	})
+	if errs := threats.Validate(withdrawal, pol, fixtureIndex()); len(errs) > 0 {
+		t.Fatalf("withdrawal supersession rejected:\n%s", errs)
 	}
 
 	tests := []struct {
@@ -278,6 +293,13 @@ func TestThreatModelValidation(t *testing.T) {
 			want: `requirement "EXCORE-900" is retired; replacements: EXCORE-001`,
 			mutate: func(doc *threats.Document) {
 				doc.Threats[0].Mitigations.Requirements = []string{"EXCORE-900"}
+			},
+		},
+		{
+			name: "withdrawn requirement link",
+			want: `requirement "EXCORE-901" was withdrawn without a replacement`,
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].Mitigations.Requirements = []string{"EXCORE-901"}
 			},
 		},
 		{
