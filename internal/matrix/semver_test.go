@@ -5,6 +5,10 @@ import "testing"
 func TestSemverPrecedence(t *testing.T) {
 	ordered := []string{
 		"0.9.9",
+		"1.0.0-2",
+		"1.0.0-11",
+		"1.0.0-99999999999999999999999999",
+		"1.0.0-0a",
 		"1.0.0-alpha",
 		"1.0.0-alpha.1",
 		"1.0.0-alpha.beta",

@@ -56,6 +56,27 @@ func TestUsageErrors(t *testing.T) {
 	); exitCode != 2 || !strings.Contains(stderr, "unexpected positional arguments") {
 		t.Fatalf("expected positional-argument rejection, got %d: %s", exitCode, stderr)
 	}
+	if exitCode, _, stderr := runCommand(
+		t, "render", "-config", config, "-matrix", matrixPath,
+	); exitCode != 2 || !strings.Contains(stderr, "-output is required") {
+		t.Fatalf("expected render required-flag error, got %d: %s", exitCode, stderr)
+	}
+	if exitCode, _, stderr := runCommand(
+		t, "compare", "-config", config,
+	); exitCode != 2 ||
+		!strings.Contains(stderr, "-baseline is required") ||
+		!strings.Contains(stderr, "-candidate is required") {
+		t.Fatalf("expected compare required-flag errors, got %d: %s", exitCode, stderr)
+	}
+}
+
+func TestRejectedConfigThroughCLI(t *testing.T) {
+	_, matrixPath := fixtureArgs(t)
+	badConfig := testsupport.WriteRaw(t, []byte(`{"config_version":2}`))
+	exitCode, _, stderr := runCommand(t, "validate", "-config", badConfig, "-matrix", matrixPath)
+	if exitCode != 2 || !strings.Contains(stderr, "cannot load config") {
+		t.Fatalf("expected config rejection, got %d: %s", exitCode, stderr)
+	}
 }
 
 func TestValidateCommand(t *testing.T) {
@@ -109,6 +130,22 @@ func TestRenderRoundTripAndCheck(t *testing.T) {
 	if exitCode != 1 || !strings.Contains(stderr, "is stale") {
 		t.Fatalf("expected stale-output rejection, got %d: %s", exitCode, stderr)
 	}
+
+	exitCode, _, stderr = runCommand(
+		t, "render", "-config", config, "-matrix", matrixPath,
+		"-output", filepath.Join(t.TempDir(), "absent.md"), "-check",
+	)
+	if exitCode != 1 || !strings.Contains(stderr, "cannot read rendered matrix") {
+		t.Fatalf("expected missing-output rejection, got %d: %s", exitCode, stderr)
+	}
+
+	exitCode, _, stderr = runCommand(
+		t, "render", "-config", config, "-matrix", matrixPath,
+		"-output", outputPath, "-template", filepath.Join(t.TempDir(), "absent.md.tmpl"),
+	)
+	if exitCode != 2 || !strings.Contains(stderr, "cannot render matrix") {
+		t.Fatalf("expected template failure, got %d: %s", exitCode, stderr)
+	}
 }
 
 func TestCompareCommand(t *testing.T) {
@@ -135,6 +172,89 @@ func TestCompareCommand(t *testing.T) {
 	if exitCode != 1 ||
 		!strings.Contains(stderr, `replacement IDs for retired ID "EXCORE-900" changed`) {
 		t.Fatalf("expected changed-replacement rejection, got %d: %s", exitCode, stderr)
+	}
+}
+
+func TestCompareCommandFailureCategories(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+	base := loadFixtureDocument(t, matrixPath)
+
+	// Every mutation below still passes single-snapshot validation, so the
+	// asserted failure can only come from the cross-version comparison.
+	tests := []struct {
+		name   string
+		want   string
+		mutate func(*matrix.Document)
+	}{
+		{
+			name: "deletion",
+			want: `requirement "EXCORE-002" was removed without a retained supersession`,
+			mutate: func(doc *matrix.Document) {
+				var kept []matrix.Requirement
+				for _, item := range doc.Requirements {
+					if item.ID != "EXCORE-002" {
+						kept = append(kept, item)
+					}
+				}
+				doc.Requirements = kept
+				doc.MatrixVersion = "0.3.0"
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
+			name: "reuse of a retired ID",
+			want: `retired requirement ID "EXCORE-900" was reused`,
+			mutate: func(doc *matrix.Document) {
+				revived := doc.Requirements[0]
+				revived.ID = "EXCORE-900"
+				doc.Requirements = append(doc.Requirements, revived)
+				doc.Supersessions = []matrix.Supersession{}
+				doc.MatrixVersion = "0.3.0"
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
+			name: "version transition",
+			want: `does not increase baseline "0.2.0"`,
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Title = "Reject every unauthenticated token request"
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := base
+			candidate.Requirements = append([]matrix.Requirement(nil), base.Requirements...)
+			candidate.Supersessions = append([]matrix.Supersession(nil), base.Supersessions...)
+			test.mutate(&candidate)
+			exitCode, _, stderr := runCommand(
+				t, "compare",
+				"-config", config,
+				"-baseline", matrixPath,
+				"-candidate", testsupport.WriteJSON(t, candidate),
+			)
+			if exitCode != 1 || !strings.Contains(stderr, test.want) {
+				t.Fatalf("expected %q with exit 1, got %d: %s", test.want, exitCode, stderr)
+			}
+		})
+	}
+}
+
+func TestCompareCommandRejectsInvalidCandidate(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+	candidate := loadFixtureDocument(t, matrixPath)
+	candidate.Requirements = append(candidate.Requirements, candidate.Requirements[0])
+	exitCode, _, stderr := runCommand(
+		t, "compare",
+		"-config", config,
+		"-baseline", matrixPath,
+		"-candidate", testsupport.WriteJSON(t, candidate),
+	)
+	if exitCode != 1 ||
+		!strings.Contains(stderr, "candidate: ") ||
+		!strings.Contains(stderr, "duplicate requirement ID") {
+		t.Fatalf("expected invalid-candidate rejection with exit 1, got %d: %s", exitCode, stderr)
 	}
 }
 

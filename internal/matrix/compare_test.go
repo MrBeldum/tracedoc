@@ -163,6 +163,67 @@ func TestCompareRejections(t *testing.T) {
 	}
 }
 
+func TestCompareReplacementSetSemantics(t *testing.T) {
+	multiReplacement := func(doc *Document) {
+		doc.Supersessions[0].ReplacementIDs = []string{"EXCORE-001", "RFCX-001"}
+	}
+
+	t.Run("reordered replacements are retained", func(t *testing.T) {
+		baseline := loadCompareFixture(t)
+		candidate := loadCompareFixture(t)
+		multiReplacement(&baseline)
+		candidate.Supersessions[0].ReplacementIDs = []string{"RFCX-001", "EXCORE-001"}
+		candidate.MatrixVersion = "0.3.0"
+		candidate.LastReviewed = "2026-08-01"
+		if errs := Compare(baseline, candidate, allRules()); len(errs) > 0 {
+			t.Fatalf("reordered replacement set rejected:\n%s", errs)
+		}
+	})
+
+	t.Run("dropped replacement is a change", func(t *testing.T) {
+		baseline := loadCompareFixture(t)
+		candidate := loadCompareFixture(t)
+		multiReplacement(&baseline)
+		candidate.Supersessions[0].ReplacementIDs = []string{"EXCORE-001"}
+		candidate.MatrixVersion = "0.3.0"
+		candidate.LastReviewed = "2026-08-01"
+		errs := Compare(baseline, candidate, allRules())
+		if !strings.Contains(errs.Error(), `replacement IDs for retired ID "EXCORE-900" changed`) {
+			t.Fatalf("expected dropped replacement to be rejected, got:\n%s", errs)
+		}
+	})
+
+	t.Run("added replacement is a change", func(t *testing.T) {
+		baseline := loadCompareFixture(t)
+		candidate := loadCompareFixture(t)
+		candidate.Supersessions[0].ReplacementIDs = []string{"EXCORE-001", "RFCX-001"}
+		candidate.MatrixVersion = "0.3.0"
+		candidate.LastReviewed = "2026-08-01"
+		errs := Compare(baseline, candidate, allRules())
+		if !strings.Contains(errs.Error(), `replacement IDs for retired ID "EXCORE-900" changed`) {
+			t.Fatalf("expected added replacement to be rejected, got:\n%s", errs)
+		}
+	})
+}
+
+func TestCompareAccumulatesViolations(t *testing.T) {
+	baseline := loadCompareFixture(t)
+	candidate := loadCompareFixture(t)
+	removeRequirement(&candidate, "RFCX-001")
+	candidate.Supersessions[0].ReplacementIDs = []string{"EXCORE-001", "PLAN-001"}
+	candidate.MatrixVersion = "0.1.0"
+	errs := Compare(baseline, candidate, allRules())
+	for _, want := range []string{
+		`requirement "RFCX-001" was removed without a retained supersession`,
+		`replacement IDs for retired ID "EXCORE-900" changed`,
+		`matrix_version "0.1.0" is lower than baseline "0.2.0"`,
+	} {
+		if !strings.Contains(errs.Error(), want) {
+			t.Errorf("expected accumulated violation %q, got:\n%s", want, errs)
+		}
+	}
+}
+
 func TestCompareOptionalRulesCanBeDisabled(t *testing.T) {
 	baseline := loadCompareFixture(t)
 	candidate := loadCompareFixture(t)

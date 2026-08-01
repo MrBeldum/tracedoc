@@ -61,6 +61,10 @@ func Compare(baseline, candidate Document, rules TransitionRules) Errors {
 		}
 	}
 
+	// DeepEqual distinguishes nil from empty slices, which is safe only
+	// because Validate forces every schema-1 slice and object field to be
+	// non-nil. A future schema that adds an optional array field must
+	// normalize here before comparing.
 	changed := !reflect.DeepEqual(baseline, candidate)
 	baselineVersion := parseSemver(baseline.MatrixVersion)
 	candidateVersion := parseSemver(candidate.MatrixVersion)
@@ -88,6 +92,10 @@ func Compare(baseline, candidate Document, rules TransitionRules) Errors {
 			baseline.LastReviewed,
 		)
 	}
+	// Schema transitions are observable here only to a tool release that
+	// reads more than one schema version; the CLI validates both documents
+	// first, so while exactly one schema version is readable this rule is a
+	// declared forward-looking contract for the first schema migration.
 	if rules.RequireMajorOnSchemaChange &&
 		candidate.SchemaVersion != baseline.SchemaVersion &&
 		candidateVersion.numbers[0] <= baselineVersion.numbers[0] {

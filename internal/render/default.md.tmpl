@@ -56,11 +56,11 @@ Ownership routes requirements through durable responsibility classifications rat
 
 | Milestone | Workstream | Issue | Requirements |
 | --- | --- | --- | ---: |
-{{range .Ownership}}| `{{.Milestone}}` | {{table .Workstream}} | {{if .Issue}}[{{.Issue}}]({{issueURL .Issue}}){{else}}Milestone backlog{{end}} | [{{len .Requirements}}](#{{.Anchor}}) |
+{{range .Ownership}}| {{inlineCode .Milestone}} | {{table .Workstream}} | {{if .Issue}}[{{linkLabel .Issue}}]({{linkDestination (issueURL .Issue)}}){{else}}Milestone backlog{{end}} | [{{len .Requirements}}](#{{.Anchor}}) |
 {{end}}
 {{range .Ownership}}<a id="{{.Anchor}}"></a>
 <details>
-<summary><code>{{htmlText .Milestone}}</code> - {{htmlText .Workstream}}{{if .Issue}} - <a href="{{issueURL .Issue}}">{{htmlText .Issue}}</a>{{end}} ({{len .Requirements}})</summary>
+<summary><code>{{htmlText .Milestone}}</code> - {{htmlText .Workstream}}{{if .Issue}} - <a href="{{htmlText (issueURL .Issue)}}">{{htmlText .Issue}}</a>{{end}} ({{len .Requirements}})</summary>
 
 {{range $index, $requirement := .Requirements}}{{if $index}}, {{end}}[`{{$requirement.ID}}`](#{{lower $requirement.ID}}){{end}}
 

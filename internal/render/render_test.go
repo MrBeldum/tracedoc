@@ -136,6 +136,70 @@ func TestConsumerTemplateOverride(t *testing.T) {
 	}
 }
 
+func TestOwnershipIndexEscapesUntrustedContent(t *testing.T) {
+	doc := fixtureDocument(t)
+	item := &doc.Requirements[0]
+	item.Owner.Milestone = "M1`*|x"
+	issue := `#36"><script>alert(1)</script>`
+	item.Owner.Issue = &issue
+
+	rendered, err := Document(doc, fixtureOptions())
+	if err != nil {
+		t.Fatalf("render hostile owner fields: %v", err)
+	}
+	for _, want := range []string{
+		// Table cell: backtick-safe inline code with the pipe neutralized.
+		"`` M1`*\\|x ``",
+		// Summary line: HTML-entity escaping of the milestone.
+		"M1&#96;&#42;&#124;x",
+		// HTML href attribute: quote and angle brackets entity-escaped.
+		`issues/36&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;`,
+		// Markdown link destination: angle brackets percent-encoded.
+		"%3Cscript%3E",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("rendered Markdown does not contain %q", want)
+		}
+	}
+	if strings.Contains(rendered, `"><script>alert(1)</script>`) {
+		t.Error("rendered Markdown contains an unescaped attribute breakout")
+	}
+}
+
+func TestTemplateFailureModes(t *testing.T) {
+	t.Run("missing template file", func(t *testing.T) {
+		options := fixtureOptions()
+		options.TemplatePath = filepath.Join(t.TempDir(), "absent.md.tmpl")
+		if _, err := Document(fixtureDocument(t), options); err == nil {
+			t.Fatal("expected missing-template error")
+		}
+	})
+
+	t.Run("template parse error", func(t *testing.T) {
+		templatePath := filepath.Join(t.TempDir(), "broken.md.tmpl")
+		if err := os.WriteFile(templatePath, []byte(`{{define "matrix"}}{{end`), 0o644); err != nil {
+			t.Fatalf("write template: %v", err)
+		}
+		options := fixtureOptions()
+		options.TemplatePath = templatePath
+		if _, err := Document(fixtureDocument(t), options); err == nil {
+			t.Fatal("expected template parse error")
+		}
+	})
+
+	t.Run("template without matrix define", func(t *testing.T) {
+		templatePath := filepath.Join(t.TempDir(), "nomatrix.md.tmpl")
+		if err := os.WriteFile(templatePath, []byte(`{{define "other"}}x{{end}}`), 0o644); err != nil {
+			t.Fatalf("write template: %v", err)
+		}
+		options := fixtureOptions()
+		options.TemplatePath = templatePath
+		if _, err := Document(fixtureDocument(t), options); err == nil {
+			t.Fatal("expected missing-define error")
+		}
+	})
+}
+
 func TestOversizedTemplateIsRejected(t *testing.T) {
 	templatePath := filepath.Join(t.TempDir(), "big.md.tmpl")
 	if err := os.WriteFile(templatePath, make([]byte, MaxTemplateBytes+1), 0o644); err != nil {

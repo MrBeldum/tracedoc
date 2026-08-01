@@ -34,8 +34,14 @@ promises: minor releases may break, and the changelog records every break.
    `cmd/reqmatrix/main.go` to the release version.
 2. CI must be green (formatting, `go vet`, race-enabled tests, tidy and
    dependency-free module checks).
-3. Tag the release commit `vX.Y.Z` and create a GitHub release pointing at
-   the tag with the changelog entry.
+3. Tag the release commit `vX.Y.Z`. The tag push triggers the
+   release-verification workflow, which re-runs the full verification suite
+   against the tagged commit and fails if the embedded `toolVersion` does
+   not match the tag.
+4. After the release-verification workflow succeeds, create a GitHub
+   release pointing at the tag with the changelog entry. A tag whose
+   verification failed must never be announced or consumed; publish a
+   higher corrected version instead (tags are immutable once pushed).
 
 Releases are source releases distributed through the Go module ecosystem;
 no binaries are published. The Go module checksum database

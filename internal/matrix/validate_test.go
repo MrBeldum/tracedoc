@@ -276,6 +276,40 @@ func TestMatrixValidation(t *testing.T) {
 				doc.Requirements[0].Title = strings.Repeat("x", matrix.MaxStringBytes+1)
 			},
 		},
+		{
+			name: "unsupported applicability",
+			want: `applicability: unsupported value "optional"`,
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Applicability = "optional"
+			},
+		},
+		{
+			name: "oversized applicability rationale",
+			want: "applicability_rationale: exceeds 16384-byte limit",
+			mutate: func(doc *matrix.Document) {
+				requirementByID(t, doc, "EXCORE-002").ApplicabilityRationale =
+					strings.Repeat("x", matrix.MaxStringBytes+1)
+			},
+		},
+		{
+			name: "oversized rationale on applicable item",
+			want: "applicability_rationale: exceeds 16384-byte limit",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].ApplicabilityRationale =
+					strings.Repeat("x", matrix.MaxStringBytes+1)
+			},
+		},
+		{
+			name: "duplicate retired ID",
+			want: `duplicate retired ID "EXCORE-900"`,
+			mutate: func(doc *matrix.Document) {
+				doc.Supersessions = append(doc.Supersessions, matrix.Supersession{
+					RetiredID:      "EXCORE-900",
+					ReplacementIDs: []string{"RFCX-001"},
+					Rationale:      "Duplicate ledger entry.",
+				})
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

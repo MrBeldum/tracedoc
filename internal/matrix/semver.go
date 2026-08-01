@@ -49,11 +49,16 @@ func compareSemver(left, right semver) int {
 }
 
 func compareIdentifier(left, right string) int {
-	leftNumber, leftNumeric := parseNumericIdentifier(left)
-	rightNumber, rightNumeric := parseNumericIdentifier(right)
+	leftNumeric := isNumericIdentifier(left)
+	rightNumeric := isNumericIdentifier(right)
 	switch {
 	case leftNumeric && rightNumeric:
-		return sign(leftNumber - rightNumber)
+		// Semver numeric identifiers carry no leading zeros, so ordering by
+		// length and then lexically equals numeric ordering at any magnitude.
+		if len(left) != len(right) {
+			return sign(len(left) - len(right))
+		}
+		return strings.Compare(left, right)
 	case leftNumeric:
 		return -1
 	case rightNumeric:
@@ -63,17 +68,13 @@ func compareIdentifier(left, right string) int {
 	}
 }
 
-func parseNumericIdentifier(value string) (int, bool) {
+func isNumericIdentifier(value string) bool {
 	for _, r := range value {
 		if r < '0' || r > '9' {
-			return 0, false
+			return false
 		}
 	}
-	number, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, false
-	}
-	return number, true
+	return true
 }
 
 func sign(value int) int {

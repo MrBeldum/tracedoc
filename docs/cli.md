@@ -54,6 +54,14 @@ legal successor of the designated accepted baseline:
   any change requires `last_reviewed` not to regress, and a
   `schema_version` change requires a major `matrix_version` increase).
 
+Note on `require_major_on_schema_change`: because `compare` validates both
+snapshots first and each tool release reads exactly one matrix schema
+version today, a schema-version difference cannot currently reach this rule
+through the CLI. The rule is a declared forward-looking contract: it takes
+effect with the first tool release that reads more than one schema version
+(the planned migration mechanism in
+[versioning.md](versioning.md#version-surfaces)).
+
 `compare` evaluates exactly two snapshots. It proves continuity between the
 baseline and the candidate; continuity across history follows only when
 every accepted revision was compared against the previously accepted

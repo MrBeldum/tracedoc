@@ -44,6 +44,11 @@ Or install a verified binary onto your PATH:
 go install github.com/sofired/reqmatrix/cmd/reqmatrix@v0.1.0
 ```
 
+Building or running the tool requires Go 1.26 or later (`go.mod` declares
+`go 1.26.0`; with toolchain auto-download enabled, any recent Go
+installation resolves this automatically — pinned-toolchain or offline
+environments must provide it themselves).
+
 See [docs/versioning.md](docs/versioning.md) for the release, compatibility,
 provenance, and update policy, including offline and supply-chain guidance.
 

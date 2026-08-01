@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"text/template/parse"
 
 	"github.com/sofired/reqmatrix/internal/matrix"
 )
@@ -80,12 +81,33 @@ func Document(doc matrix.Document, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A file whose content sits entirely in other {{define}} blocks leaves
+	// the root "matrix" template empty, and executing an empty template
+	// silently renders nothing. Reject that instead of writing empty output.
+	if !definesMatrix(parsed) {
+		return "", fmt.Errorf("template does not define a non-empty %q template", "matrix")
+	}
 
 	var output bytes.Buffer
 	if err := parsed.ExecuteTemplate(&output, "matrix", newView(doc, options)); err != nil {
 		return "", err
 	}
 	return output.String(), nil
+}
+
+func definesMatrix(parsed *template.Template) bool {
+	found := parsed.Lookup("matrix")
+	if found == nil || found.Tree == nil || found.Tree.Root == nil {
+		return false
+	}
+	for _, node := range found.Tree.Root.Nodes {
+		if text, ok := node.(*parse.TextNode); ok &&
+			strings.TrimSpace(string(text.Text)) == "" {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func templateFuncs(options Options) template.FuncMap {
