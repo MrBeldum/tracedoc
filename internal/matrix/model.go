@@ -1,5 +1,5 @@
-// Package matrix defines the versioned requirements-matrix document model,
-// its structural and cross-reference validation, and cross-version baseline
+// Package matrix defines the requirements-matrix document schema, its
+// structural and cross-reference validation, and its cross-version
 // comparison. Consumer-specific policy is supplied through policy.Config.
 package matrix
 
@@ -7,20 +7,15 @@ package matrix
 // the tool reads, validates, renders, and compares.
 const SchemaVersion = 1
 
-// MaxDocumentBytes bounds the size of a matrix document.
-const MaxDocumentBytes = 8 << 20
-
-// MaxStringBytes bounds every validated string field.
-const MaxStringBytes = 16 << 10
-
 // Document is one requirements-matrix snapshot.
 type Document struct {
-	SchemaVersion int            `json:"schema_version"`
-	MatrixVersion string         `json:"matrix_version"`
-	LastReviewed  string         `json:"last_reviewed"`
-	Standards     []Standard     `json:"standards"`
-	Requirements  []Requirement  `json:"requirements"`
-	Supersessions []Supersession `json:"supersessions"`
+	DocumentType    string         `json:"document_type"`
+	SchemaVersion   int            `json:"schema_version"`
+	DocumentVersion string         `json:"document_version"`
+	LastReviewed    string         `json:"last_reviewed"`
+	Standards       []Standard     `json:"standards"`
+	Requirements    []Requirement  `json:"requirements"`
+	Supersessions   []Supersession `json:"supersessions"`
 }
 
 // Standard is a normative source the matrix decomposes.

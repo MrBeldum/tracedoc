@@ -1,26 +1,35 @@
 {
   "config_version": 1,
-  "required_standards": ["EXAMPLE-CORE", "RFCX", "LOCAL-PLAN"],
-  "standard_sources": [
-    { "key": "EXAMPLE-CORE", "host": "standards.example.org" },
-    { "key": "RFCX", "host": "www.rfc-editor.org" },
-    { "key": "LOCAL-PLAN", "path": "../plan.md" }
-  ],
   "milestone_pattern": "^M(?:[0-9]|1[01])$",
   "issue_pattern": "^#[1-9][0-9]*$",
   "risk_pattern": "^R(?:[1-9]|1[0-2])$",
   "workstreams": ["Protocol", "Platform"],
-  "verification_levels": ["unit", "integration", "adversarial", "documentation"],
-  "render": {
-    "issue_url_base": "https://github.com/example/project/issues/",
-    "source_name": "matrix.json",
-    "generator_name": "reqmatrix",
-    "regenerate_command": "reqmatrix render -config config.json -matrix matrix.json -output matrix.md",
-    "check_command": "reqmatrix render -config config.json -matrix matrix.json -output matrix.md -check"
-  },
+  "issue_url_base": "https://github.com/example/project/issues/",
+  "generator_name": "matrix",
   "version_transitions": {
     "require_version_increase_on_change": true,
     "require_review_date_advance_on_change": true,
     "require_major_on_schema_change": true
+  },
+  "requirements": {
+    "required_standards": ["EXAMPLE-CORE", "RFCX", "LOCAL-PLAN"],
+    "standard_sources": [
+      { "key": "EXAMPLE-CORE", "host": "standards.example.org" },
+      { "key": "RFCX", "host": "www.rfc-editor.org" },
+      { "key": "LOCAL-PLAN", "path": "../plan.md" }
+    ],
+    "verification_levels": ["unit", "integration", "adversarial", "documentation"],
+    "render": {
+      "source_name": "matrix.json",
+      "regenerate_command": "matrix render -config config.json -doc matrix.json -output matrix.md",
+      "check_command": "matrix render -config config.json -doc matrix.json -output matrix.md -check"
+    }
+  },
+  "threat_model": {
+    "render": {
+      "source_name": "threats.json",
+      "regenerate_command": "matrix render -config config.json -doc threats.json -output threats.md",
+      "check_command": "matrix render -config config.json -doc threats.json -output threats.md -check"
+    }
   }
 }

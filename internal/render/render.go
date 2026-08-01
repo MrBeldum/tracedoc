@@ -1,28 +1,24 @@
-// Package render deterministically renders a validated matrix document to
-// Markdown. Presentation strings and the issue-link base come from consumer
-// configuration; the template itself can be replaced by the consumer.
+// Package render is the doctype-neutral Markdown rendering engine: the
+// escaping template functions, the template execution contract (a
+// "document" root template), and the consumer template-override bounds.
+// Per-document-type views and default templates live in subpackages.
 package render
 
 import (
 	"bytes"
-	_ "embed"
 	"fmt"
 	"html"
 	"os"
-	"sort"
-	"strconv"
 	"strings"
 	"text/template"
 	"text/template/parse"
-
-	"github.com/sofired/matrix-service/internal/matrix"
 )
 
 // MaxTemplateBytes bounds the size of a consumer-supplied template file.
 const MaxTemplateBytes = 1 << 20
 
-//go:embed default.md.tmpl
-var defaultTemplate string
+// RootTemplate is the template name every document template must define.
+const RootTemplate = "document"
 
 // Options are the consumer presentation choices the templates receive.
 type Options struct {
@@ -31,72 +27,53 @@ type Options struct {
 	GeneratorName     string
 	RegenerateCommand string
 	CheckCommand      string
-	TemplatePath      string
 }
 
-type view struct {
-	Document             matrix.Document
-	Render               Options
-	ApplicabilityCounts  []count
-	EvidenceStatusCounts []count
-	BoundaryRequirements []matrix.Requirement
-	Ownership            []ownershipSection
-	Standards            []standardSection
-}
-
-type count struct {
-	Label string
-	Value int
-}
-
-type standardSection struct {
-	Standard     matrix.Standard
-	Requirements []matrix.Requirement
-	First        bool
-}
-
-type ownershipSection struct {
-	Milestone    string
-	Workstream   string
-	Issue        string
-	Anchor       string
-	Requirements []matrix.Requirement
-}
-
-// Document renders doc with the embedded default template, or with the
-// consumer template named by options.TemplatePath when one is set.
-func Document(doc matrix.Document, options Options) (string, error) {
-	text := defaultTemplate
-	if options.TemplatePath != "" {
-		data, err := os.ReadFile(options.TemplatePath)
-		if err != nil {
-			return "", err
-		}
-		if len(data) > MaxTemplateBytes {
-			return "", fmt.Errorf("template exceeds %d-byte limit", MaxTemplateBytes)
-		}
-		text = string(data)
+// ReadTemplate loads a consumer template file under the size bound.
+func ReadTemplate(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
 	}
-	parsed, err := template.New("matrix").Funcs(templateFuncs(options)).Parse(text)
+	if len(data) > MaxTemplateBytes {
+		return "", fmt.Errorf("template exceeds %d-byte limit", MaxTemplateBytes)
+	}
+	return string(data), nil
+}
+
+// Execute renders data through the template text. The text must define a
+// non-empty "document" template; extra supplies doctype-specific template
+// functions (for example "owner").
+func Execute(
+	text string,
+	options Options,
+	extra template.FuncMap,
+	data any,
+) (string, error) {
+	funcs := templateFuncs(options)
+	for name, fn := range extra {
+		funcs[name] = fn
+	}
+	parsed, err := template.New(RootTemplate).Funcs(funcs).Parse(text)
 	if err != nil {
 		return "", err
 	}
 	// A file whose content sits entirely in other {{define}} blocks leaves
-	// the root "matrix" template empty, and executing an empty template
+	// the root "document" template empty, and executing an empty template
 	// silently renders nothing. Reject that instead of writing empty output.
-	if !definesMatrix(parsed) {
-		return "", fmt.Errorf("template does not define a non-empty %q template", "matrix")
+	if !definesRoot(parsed) {
+		return "", fmt.Errorf("template does not define a non-empty %q template", RootTemplate)
 	}
 
 	var output bytes.Buffer
-	if err := parsed.ExecuteTemplate(&output, "matrix", newView(doc, options)); err != nil {
+	if err := parsed.ExecuteTemplate(&output, RootTemplate, data); err != nil {
 		return "", err
 	}
 	return output.String(), nil
 }
 
-func definesMatrix(parsed *template.Template) bool {
-	found := parsed.Lookup("matrix")
+func definesRoot(parsed *template.Template) bool {
+	found := parsed.Lookup(RootTemplate)
 	if found == nil || found.Tree == nil || found.Tree.Root == nil {
 		return false
 	}
@@ -112,107 +89,28 @@ func definesMatrix(parsed *template.Template) bool {
 
 func templateFuncs(options Options) template.FuncMap {
 	return template.FuncMap{
-		"htmlText":     htmlPlainText,
-		"inlineCode":   func(value string) string { return inlineCode(codeText(value)) },
-		"inlineValues": inlineValues,
+		"htmlText":     HTMLText,
+		"inlineCode":   func(value string) string { return InlineCode(CodeText(value)) },
+		"inlineValues": InlineValues,
 		"issueURL": func(value string) string {
 			return options.IssueURLBase + strings.TrimPrefix(value, "#")
 		},
 		"join":            strings.Join,
-		"linkDestination": linkDestination,
-		"linkLabel":       linkLabel,
+		"linkDestination": LinkDestination,
+		"linkLabel":       LinkLabel,
 		"lower":           strings.ToLower,
-		"owner":           ownerText,
-		"prose":           proseText,
-		"table":           tableText,
+		"prose":           ProseText,
+		"table":           TableText,
 	}
 }
 
-func newView(doc matrix.Document, options Options) view {
-	applicabilityCounts := make(map[string]int)
-	statusCounts := make(map[string]int)
-	requirementsByStandard := make(map[string][]matrix.Requirement, len(doc.Standards))
-	requirementsByOwner := make(map[[3]string][]matrix.Requirement)
-	result := view{Document: doc, Render: options}
-
-	for _, item := range doc.Requirements {
-		applicabilityCounts[item.Applicability]++
-		statusCounts[item.EvidenceStatus]++
-		requirementsByStandard[item.Standard] = append(requirementsByStandard[item.Standard], item)
-		issue := ""
-		if item.Owner.Issue != nil {
-			issue = *item.Owner.Issue
-		}
-		ownerKey := [3]string{item.Owner.Milestone, item.Owner.Workstream, issue}
-		requirementsByOwner[ownerKey] = append(requirementsByOwner[ownerKey], item)
-		if item.Applicability != "applicable" {
-			result.BoundaryRequirements = append(result.BoundaryRequirements, item)
-		}
-	}
-	for _, label := range matrix.ApplicabilityOrder {
-		result.ApplicabilityCounts = append(
-			result.ApplicabilityCounts,
-			count{Label: label, Value: applicabilityCounts[label]},
-		)
-	}
-	for _, label := range matrix.EvidenceStatusOrder {
-		if statusCounts[label] > 0 {
-			result.EvidenceStatusCounts = append(
-				result.EvidenceStatusCounts,
-				count{Label: label, Value: statusCounts[label]},
-			)
-		}
-	}
-	for key, requirements := range requirementsByOwner {
-		result.Ownership = append(result.Ownership, ownershipSection{
-			Milestone:    key[0],
-			Workstream:   key[1],
-			Issue:        key[2],
-			Requirements: requirements,
-		})
-	}
-	sort.Slice(result.Ownership, func(i, j int) bool {
-		left := result.Ownership[i]
-		right := result.Ownership[j]
-		if left.Milestone != right.Milestone {
-			return milestoneOrder(left.Milestone) < milestoneOrder(right.Milestone)
-		}
-		if left.Workstream != right.Workstream {
-			return left.Workstream < right.Workstream
-		}
-		return left.Issue < right.Issue
-	})
-	for index := range result.Ownership {
-		result.Ownership[index].Anchor = "ownership-" + strconv.Itoa(index+1)
-	}
-	for _, item := range doc.Standards {
-		result.Standards = append(
-			result.Standards,
-			standardSection{
-				Standard:     item,
-				Requirements: requirementsByStandard[item.Key],
-				First:        len(result.Standards) == 0,
-			},
-		)
-	}
-	return result
-}
-
-// milestoneOrder sorts milestone labels of the form <prefix><number> by
-// their numeric suffix, falling back to lexical order between equal numbers.
-func milestoneOrder(value string) int {
-	digits := strings.TrimFunc(value, func(r rune) bool {
-		return r < '0' || r > '9'
-	})
-	number, _ := strconv.Atoi(digits)
-	return number
-}
-
-func tableText(value string) string {
+// TableText escapes value for a Markdown table cell.
+func TableText(value string) string {
 	return markdownText(value, "<br>")
 }
 
-func htmlPlainText(value string) string {
+// HTMLText escapes value for plain-text emission inside raw HTML.
+func HTMLText(value string) string {
 	value = html.EscapeString(value)
 	return strings.NewReplacer(
 		`\`, "&#92;",
@@ -229,18 +127,20 @@ func htmlPlainText(value string) string {
 	).Replace(value)
 }
 
-func inlineValues(values []string) string {
+// InlineValues renders values as a comma-separated inline-code list.
+func InlineValues(values []string) string {
 	if len(values) == 0 {
 		return "None recorded"
 	}
 	formatted := make([]string, 0, len(values))
 	for _, value := range values {
-		formatted = append(formatted, inlineCode(codeText(value)))
+		formatted = append(formatted, InlineCode(CodeText(value)))
 	}
 	return strings.Join(formatted, ", ")
 }
 
-func codeText(value string) string {
+// CodeText neutralizes table and line-break structure inside code spans.
+func CodeText(value string) string {
 	return strings.NewReplacer(
 		`|`, `\|`,
 		"\r\n", " ",
@@ -249,7 +149,8 @@ func codeText(value string) string {
 	).Replace(value)
 }
 
-func inlineCode(value string) string {
+// InlineCode wraps value in a backtick fence longer than any run it contains.
+func InlineCode(value string) string {
 	fence := "`"
 	for strings.Contains(value, fence) {
 		fence += "`"
@@ -260,22 +161,13 @@ func inlineCode(value string) string {
 	return fence + value + fence
 }
 
-func ownerText(value *matrix.Owner) string {
-	parts := []string{value.Milestone, value.Workstream}
-	if value.Issue != nil {
-		parts = append(parts, *value.Issue)
-	}
-	for index, part := range parts {
-		parts[index] = tableText(part)
-	}
-	return strings.Join(parts, " / ")
-}
-
-func proseText(value string) string {
+// ProseText escapes value for Markdown prose.
+func ProseText(value string) string {
 	return markdownText(value, "<br>")
 }
 
-func linkLabel(value string) string {
+// LinkLabel escapes value for a Markdown link label.
+func LinkLabel(value string) string {
 	return markdownText(value, " ")
 }
 
@@ -298,7 +190,8 @@ func markdownText(value, lineBreak string) string {
 	).Replace(value)
 }
 
-func linkDestination(value string) string {
+// LinkDestination escapes value for a Markdown link destination.
+func LinkDestination(value string) string {
 	escaped := strings.NewReplacer("<", "%3C", ">", "%3E").Replace(value)
 	if strings.ContainsAny(escaped, " ()\t\r\n") {
 		return "<" + escaped + ">"

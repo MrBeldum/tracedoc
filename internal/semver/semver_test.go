@@ -1,8 +1,8 @@
-package matrix
+package semver
 
 import "testing"
 
-func TestSemverPrecedence(t *testing.T) {
+func TestPrecedence(t *testing.T) {
 	ordered := []string{
 		"0.9.9",
 		"1.0.0-2",
@@ -23,12 +23,12 @@ func TestSemverPrecedence(t *testing.T) {
 		"2.0.0",
 	}
 	for index := 1; index < len(ordered); index++ {
-		left := parseSemver(ordered[index-1])
-		right := parseSemver(ordered[index])
-		if compareSemver(left, right) >= 0 {
+		left := Parse(ordered[index-1])
+		right := Parse(ordered[index])
+		if Compare(left, right) >= 0 {
 			t.Errorf("expected %q < %q", ordered[index-1], ordered[index])
 		}
-		if compareSemver(right, left) <= 0 {
+		if Compare(right, left) <= 0 {
 			t.Errorf("expected %q > %q", ordered[index], ordered[index-1])
 		}
 	}
@@ -39,8 +39,12 @@ func TestSemverPrecedence(t *testing.T) {
 		{"1.0.0-rc.1+build.2", "1.0.0-rc.1"},
 	}
 	for _, pair := range equal {
-		if compareSemver(parseSemver(pair[0]), parseSemver(pair[1])) != 0 {
+		if Compare(Parse(pair[0]), Parse(pair[1])) != 0 {
 			t.Errorf("expected %q == %q", pair[0], pair[1])
 		}
+	}
+
+	if Parse("2.4.6").Major() != 2 {
+		t.Error("expected major version 2")
 	}
 }

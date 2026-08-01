@@ -1,8 +1,9 @@
 // Package policy loads and validates the consumer-owned configuration file.
 // The configuration is a bounded set of declarative knobs — allowed
 // vocabularies, source-host rules, identifier formats, presentation strings,
-// and version-transition switches. It is deliberately not a general-purpose
-// validation language.
+// and version-transition switches — shared settings at the top level plus
+// one optional section per document type. It is deliberately not a
+// general-purpose validation language.
 package policy
 
 import (
@@ -12,8 +13,12 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/sofired/matrix-service/internal/continuity"
+	"github.com/sofired/matrix-service/internal/document"
 	"github.com/sofired/matrix-service/internal/matrix"
+	"github.com/sofired/matrix-service/internal/render"
 	"github.com/sofired/matrix-service/internal/strictjson"
+	"github.com/sofired/matrix-service/internal/threats"
 )
 
 // ConfigVersion is the configuration schema this release of the tool reads.
@@ -35,22 +40,35 @@ var (
 	levelPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 )
 
-// Config is the consumer-owned policy for one requirements matrix.
+// Config is the consumer-owned policy for one project's documents.
 type Config struct {
-	ConfigVersion      int                `json:"config_version"`
-	RequiredStandards  []string           `json:"required_standards"`
-	StandardSources    []StandardSource   `json:"standard_sources"`
-	MilestonePattern   string             `json:"milestone_pattern"`
-	IssuePattern       string             `json:"issue_pattern"`
-	RiskPattern        string             `json:"risk_pattern"`
-	Workstreams        []string           `json:"workstreams"`
-	VerificationLevels []string           `json:"verification_levels"`
-	Render             Render             `json:"render"`
-	VersionTransitions VersionTransitions `json:"version_transitions"`
+	ConfigVersion      int                  `json:"config_version"`
+	MilestonePattern   string               `json:"milestone_pattern"`
+	IssuePattern       string               `json:"issue_pattern"`
+	RiskPattern        string               `json:"risk_pattern"`
+	Workstreams        []string             `json:"workstreams"`
+	IssueURLBase       string               `json:"issue_url_base"`
+	GeneratorName      string               `json:"generator_name"`
+	VersionTransitions VersionTransitions   `json:"version_transitions"`
+	Requirements       *RequirementsSection `json:"requirements,omitempty"`
+	ThreatModel        *ThreatModelSection  `json:"threat_model,omitempty"`
 
 	milestone *regexp.Regexp
 	issue     *regexp.Regexp
 	risk      *regexp.Regexp
+}
+
+// RequirementsSection is the requirements-matrix policy.
+type RequirementsSection struct {
+	RequiredStandards  []string         `json:"required_standards"`
+	StandardSources    []StandardSource `json:"standard_sources"`
+	VerificationLevels []string         `json:"verification_levels"`
+	Render             Render           `json:"render"`
+}
+
+// ThreatModelSection is the threat-model policy.
+type ThreatModelSection struct {
+	Render Render `json:"render"`
 }
 
 // StandardSource declares where citations for one standard may point: either
@@ -61,11 +79,9 @@ type StandardSource struct {
 	Path string `json:"path,omitempty"`
 }
 
-// Render holds consumer presentation choices used by the default template.
+// Render holds per-document presentation strings used by the templates.
 type Render struct {
-	IssueURLBase      string `json:"issue_url_base"`
 	SourceName        string `json:"source_name"`
-	GeneratorName     string `json:"generator_name"`
 	RegenerateCommand string `json:"regenerate_command"`
 	CheckCommand      string `json:"check_command"`
 }
@@ -90,23 +106,26 @@ func Load(path string) (*Config, error) {
 	return &config, nil
 }
 
-// MatrixPolicy converts the configuration into the compiled policy the
-// matrix validator consumes.
-func (c *Config) MatrixPolicy() matrix.Policy {
+// RequirementsPolicy converts the configuration into the compiled policy
+// the requirements-matrix validator consumes.
+func (c *Config) RequirementsPolicy() (matrix.Policy, error) {
+	if c.Requirements == nil {
+		return matrix.Policy{}, fmt.Errorf("config has no requirements section")
+	}
 	result := matrix.Policy{
-		RequiredStandards:  make(map[string]struct{}, len(c.RequiredStandards)),
+		RequiredStandards:  make(map[string]struct{}, len(c.Requirements.RequiredStandards)),
 		StandardHosts:      make(map[string]string),
 		LocalSources:       make(map[string]string),
 		Workstreams:        make(map[string]struct{}, len(c.Workstreams)),
-		VerificationLevels: make(map[string]struct{}, len(c.VerificationLevels)),
+		VerificationLevels: make(map[string]struct{}, len(c.Requirements.VerificationLevels)),
 		Milestone:          c.milestone,
 		Issue:              c.issue,
 		Risk:               c.risk,
 	}
-	for _, key := range c.RequiredStandards {
+	for _, key := range c.Requirements.RequiredStandards {
 		result.RequiredStandards[key] = struct{}{}
 	}
-	for _, source := range c.StandardSources {
+	for _, source := range c.Requirements.StandardSources {
 		if source.Path != "" {
 			result.LocalSources[source.Key] = source.Path
 		} else {
@@ -116,15 +135,58 @@ func (c *Config) MatrixPolicy() matrix.Policy {
 	for _, value := range c.Workstreams {
 		result.Workstreams[value] = struct{}{}
 	}
-	for _, value := range c.VerificationLevels {
+	for _, value := range c.Requirements.VerificationLevels {
 		result.VerificationLevels[value] = struct{}{}
 	}
-	return result
+	return result, nil
+}
+
+// ThreatsPolicy converts the configuration into the compiled policy the
+// threat-model validator consumes.
+func (c *Config) ThreatsPolicy() (threats.Policy, error) {
+	if c.ThreatModel == nil {
+		return threats.Policy{}, fmt.Errorf("config has no threat_model section")
+	}
+	result := threats.Policy{
+		Workstreams: make(map[string]struct{}, len(c.Workstreams)),
+		Milestone:   c.milestone,
+		Issue:       c.issue,
+		Risk:        c.risk,
+	}
+	for _, value := range c.Workstreams {
+		result.Workstreams[value] = struct{}{}
+	}
+	return result, nil
+}
+
+// RenderOptions returns the presentation options for one document type.
+func (c *Config) RenderOptions(docType document.Type) (render.Options, error) {
+	var section *Render
+	switch docType {
+	case document.TypeRequirements:
+		if c.Requirements != nil {
+			section = &c.Requirements.Render
+		}
+	case document.TypeThreatModel:
+		if c.ThreatModel != nil {
+			section = &c.ThreatModel.Render
+		}
+	}
+	if section == nil {
+		return render.Options{}, fmt.Errorf("config has no %s section", docType)
+	}
+	return render.Options{
+		IssueURLBase:      c.IssueURLBase,
+		SourceName:        section.SourceName,
+		GeneratorName:     c.GeneratorName,
+		RegenerateCommand: section.RegenerateCommand,
+		CheckCommand:      section.CheckCommand,
+	}, nil
 }
 
 // TransitionRules converts the configuration into compare-command rules.
-func (c *Config) TransitionRules() matrix.TransitionRules {
-	return matrix.TransitionRules{
+func (c *Config) TransitionRules() continuity.TransitionRules {
+	return continuity.TransitionRules{
 		RequireVersionIncreaseOnChange:   c.VersionTransitions.RequireVersionIncreaseOnChange,
 		RequireReviewDateAdvanceOnChange: c.VersionTransitions.RequireReviewDateAdvanceOnChange,
 		RequireMajorOnSchemaChange:       c.VersionTransitions.RequireMajorOnSchemaChange,
@@ -141,12 +203,39 @@ func (c *Config) validate() []string {
 		add("config_version", "expected %d", ConfigVersion)
 	}
 
-	sourceKeys := make(map[string]struct{}, len(c.StandardSources))
-	if len(c.StandardSources) == 0 {
-		add("standard_sources", "expected a non-empty array")
+	c.milestone = c.compilePattern(&errs, "milestone_pattern", c.MilestonePattern)
+	c.issue = c.compilePattern(&errs, "issue_pattern", c.IssuePattern)
+	c.risk = c.compilePattern(&errs, "risk_pattern", c.RiskPattern)
+
+	validateValueList(&errs, "workstreams", c.Workstreams, nil)
+
+	if c.IssueURLBase == "" {
+		add("issue_url_base", "expected a non-empty string")
+	} else if err := validateIssueURLBase(c.IssueURLBase); err != nil {
+		add("issue_url_base", "%s", err.Error())
 	}
-	for index, source := range c.StandardSources {
-		location := fmt.Sprintf("standard_sources[%d]", index)
+	validateLine(add, "generator_name", c.GeneratorName, maxValueBytes)
+
+	if c.Requirements != nil {
+		c.validateRequirementsSection(&errs, add)
+	}
+	if c.ThreatModel != nil {
+		validateRender(add, "threat_model.render", c.ThreatModel.Render)
+	}
+	return errs
+}
+
+func (c *Config) validateRequirementsSection(
+	errs *[]string,
+	add func(location, format string, args ...any),
+) {
+	section := c.Requirements
+	sourceKeys := make(map[string]struct{}, len(section.StandardSources))
+	if len(section.StandardSources) == 0 {
+		add("requirements.standard_sources", "expected a non-empty array")
+	}
+	for index, source := range section.StandardSources {
+		location := fmt.Sprintf("requirements.standard_sources[%d]", index)
 		if !matrix.StandardKeyPattern.MatchString(source.Key) {
 			add(location+".key", "expected a stable standard key")
 		} else if _, duplicate := sourceKeys[source.Key]; duplicate {
@@ -170,12 +259,12 @@ func (c *Config) validate() []string {
 		}
 	}
 
-	if c.RequiredStandards == nil {
-		add("required_standards", "expected an array")
+	if section.RequiredStandards == nil {
+		add("requirements.required_standards", "expected an array")
 	}
-	seenRequired := make(map[string]struct{}, len(c.RequiredStandards))
-	for index, key := range c.RequiredStandards {
-		location := fmt.Sprintf("required_standards[%d]", index)
+	seenRequired := make(map[string]struct{}, len(section.RequiredStandards))
+	for index, key := range section.RequiredStandards {
+		location := fmt.Sprintf("requirements.required_standards[%d]", index)
 		if !matrix.StandardKeyPattern.MatchString(key) {
 			add(location, "expected a stable standard key")
 			continue
@@ -189,15 +278,14 @@ func (c *Config) validate() []string {
 		}
 	}
 
-	c.milestone = c.compilePattern(&errs, "milestone_pattern", c.MilestonePattern)
-	c.issue = c.compilePattern(&errs, "issue_pattern", c.IssuePattern)
-	c.risk = c.compilePattern(&errs, "risk_pattern", c.RiskPattern)
+	validateValueList(
+		errs,
+		"requirements.verification_levels",
+		section.VerificationLevels,
+		levelPattern,
+	)
 
-	validateValueList(&errs, "workstreams", c.Workstreams, nil)
-	validateValueList(&errs, "verification_levels", c.VerificationLevels, levelPattern)
-
-	c.validateRender(add)
-	return errs
+	validateRender(add, "requirements.render", section.Render)
 }
 
 func (c *Config) compilePattern(errs *[]string, location, value string) *regexp.Regexp {
@@ -247,17 +335,14 @@ func validateValueList(errs *[]string, location string, values []string, pattern
 	}
 }
 
-func (c *Config) validateRender(add func(location, format string, args ...any)) {
-	base := c.Render.IssueURLBase
-	if base == "" {
-		add("render.issue_url_base", "expected a non-empty string")
-	} else if err := validateIssueURLBase(base); err != nil {
-		add("render.issue_url_base", "%s", err.Error())
-	}
-	validateLine(add, "render.source_name", c.Render.SourceName, maxValueBytes)
-	validateLine(add, "render.generator_name", c.Render.GeneratorName, maxValueBytes)
-	validateLine(add, "render.regenerate_command", c.Render.RegenerateCommand, maxCommandBytes)
-	validateLine(add, "render.check_command", c.Render.CheckCommand, maxCommandBytes)
+func validateRender(
+	add func(location, format string, args ...any),
+	location string,
+	value Render,
+) {
+	validateLine(add, location+".source_name", value.SourceName, maxValueBytes)
+	validateLine(add, location+".regenerate_command", value.RegenerateCommand, maxCommandBytes)
+	validateLine(add, location+".check_command", value.CheckCommand, maxCommandBytes)
 }
 
 func validateLine(

@@ -9,25 +9,22 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/sofired/matrix-service/internal/check"
+	"github.com/sofired/matrix-service/internal/document"
+	"github.com/sofired/matrix-service/internal/semver"
 )
 
 // Schema-owned lexical rules. These belong to the versioned document schema,
 // not to consumer policy: changing them is a schema revision.
 var (
 	// RequirementIDPattern is the stable requirement-identifier format.
-	RequirementIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[0-9]{3}$`)
+	RequirementIDPattern = check.StableIDPattern
 	// StandardKeyPattern is the stable standard-key format.
 	StandardKeyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*(?:[-.][A-Z0-9]+)*$`)
-	// MatrixVersionPattern is the semantic-version format for matrix_version.
-	MatrixVersionPattern = regexp.MustCompile(
-		`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)` +
-			`(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)` +
-			`(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?` +
-			`(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
-	)
 
-	applicabilityValues  = stringSet("applicable", "deferred", "not-applicable")
-	evidenceStatusValues = stringSet(
+	applicabilityValues  = check.StringSet("applicable", "deferred", "not-applicable")
+	evidenceStatusValues = check.StringSet(
 		"planned", "in-progress", "verified", "deferred", "not-applicable",
 	)
 )
@@ -53,16 +50,9 @@ type Policy struct {
 	Risk               *regexp.Regexp
 }
 
-// Errors is an ordered list of validation failures.
-type Errors []string
-
-func (errs Errors) Error() string {
-	return strings.Join(errs, "\n")
-}
-
 type validator struct {
+	check.Checker
 	policy           Policy
-	errs             Errors
 	standardKeys     map[string]struct{}
 	activeIDs        map[string]struct{}
 	coveredStandards map[string]struct{}
@@ -70,7 +60,7 @@ type validator struct {
 }
 
 // Validate checks one document snapshot against the schema and the policy.
-func Validate(doc Document, policy Policy) Errors {
+func Validate(doc Document, policy Policy) check.Errors {
 	v := validator{
 		policy:           policy,
 		standardKeys:     make(map[string]struct{}, len(doc.Standards)),
@@ -79,75 +69,86 @@ func Validate(doc Document, policy Policy) Errors {
 		retiredIDs:       make(map[string]struct{}, len(doc.Supersessions)),
 	}
 	v.document(doc)
-	return v.errs
+	return v.Errs
 }
 
 func (v *validator) document(doc Document) {
+	if doc.DocumentType != string(document.TypeRequirements) {
+		v.Addf("document_type", "expected %q", document.TypeRequirements)
+	}
 	if doc.SchemaVersion != SchemaVersion {
-		v.addf("schema_version", "expected %d", SchemaVersion)
+		v.Addf("schema_version", "expected %d", SchemaVersion)
 	}
-	if v.requiredString("matrix_version", doc.MatrixVersion) &&
-		!MatrixVersionPattern.MatchString(doc.MatrixVersion) {
-		v.add("matrix_version", "expected a semantic version")
-	}
-	if v.requiredString("last_reviewed", doc.LastReviewed) {
-		if parsed, err := time.Parse(time.DateOnly, doc.LastReviewed); err != nil ||
-			parsed.Format(time.DateOnly) != doc.LastReviewed {
-			v.add("last_reviewed", "expected an RFC 3339 full date")
-		}
-	}
+	v.documentVersion(doc.DocumentVersion)
+	v.lastReviewed(doc.LastReviewed)
 
 	if len(doc.Standards) == 0 {
-		v.add("standards", "expected a non-empty array")
+		v.Add("standards", "expected a non-empty array")
 	}
 	for index, item := range doc.Standards {
 		v.standard(index, item)
 	}
-	for _, key := range sortedSetDifference(v.policy.RequiredStandards, v.standardKeys) {
-		v.addf("standards", "required standard %q is missing", key)
+	for _, key := range check.SortedSetDifference(v.policy.RequiredStandards, v.standardKeys) {
+		v.Addf("standards", "required standard %q is missing", key)
 	}
 
 	if len(doc.Requirements) == 0 {
-		v.add("requirements", "expected a non-empty array")
+		v.Add("requirements", "expected a non-empty array")
 	}
 	for index, item := range doc.Requirements {
 		v.requirement(index, item)
 	}
-	for _, key := range sortedSetDifference(v.standardKeys, v.coveredStandards) {
-		v.addf("standards", "%q has no requirement", key)
+	for _, key := range check.SortedSetDifference(v.standardKeys, v.coveredStandards) {
+		v.Addf("standards", "%q has no requirement", key)
 	}
 
 	if doc.Supersessions == nil {
-		v.add("supersessions", "expected an array")
+		v.Add("supersessions", "expected an array")
 	}
 	for index, item := range doc.Supersessions {
 		v.supersession(index, item)
 	}
 }
 
+func (v *validator) documentVersion(value string) {
+	if v.RequiredString("document_version", value) &&
+		!semver.Pattern.MatchString(value) {
+		v.Add("document_version", "expected a semantic version")
+	}
+}
+
+func (v *validator) lastReviewed(value string) {
+	if v.RequiredString("last_reviewed", value) {
+		if parsed, err := time.Parse(time.DateOnly, value); err != nil ||
+			parsed.Format(time.DateOnly) != value {
+			v.Add("last_reviewed", "expected an RFC 3339 full date")
+		}
+	}
+}
+
 func (v *validator) standard(index int, item Standard) {
 	location := fmt.Sprintf("standards[%d]", index)
 	if !StandardKeyPattern.MatchString(item.Key) {
-		v.add(location+".key", "expected a stable standard key")
-	} else if !v.insertUnique(v.standardKeys, item.Key) {
-		v.addf(location+".key", "duplicate standard key %q", item.Key)
+		v.Add(location+".key", "expected a stable standard key")
+	} else if !v.InsertUnique(v.standardKeys, item.Key) {
+		v.Addf(location+".key", "duplicate standard key %q", item.Key)
 	}
-	v.requiredString(location+".title", item.Title)
+	v.RequiredString(location+".title", item.Title)
 	v.sourceURI(location+".uri", item.Key, item.URI)
 }
 
 func (v *validator) requirement(index int, item Requirement) {
 	location := fmt.Sprintf("requirements[%d]", index)
 	if !RequirementIDPattern.MatchString(item.ID) {
-		v.add(location+".id", "expected a stable requirement ID")
-	} else if !v.insertUnique(v.activeIDs, item.ID) {
-		v.addf(location+".id", "duplicate requirement ID %q", item.ID)
+		v.Add(location+".id", "expected a stable requirement ID")
+	} else if !v.InsertUnique(v.activeIDs, item.ID) {
+		v.Addf(location+".id", "duplicate requirement ID %q", item.ID)
 	}
-	v.requiredString(location+".title", item.Title)
-	v.requiredString(location+".interpretation", item.Interpretation)
+	v.RequiredString(location+".title", item.Title)
+	v.RequiredString(location+".interpretation", item.Interpretation)
 
-	if !contains(v.standardKeys, item.Standard) {
-		v.addf(location+".standard", "unknown standard %q", item.Standard)
+	if !check.Contains(v.standardKeys, item.Standard) {
+		v.Addf(location+".standard", "unknown standard %q", item.Standard)
 	} else {
 		v.coveredStandards[item.Standard] = struct{}{}
 	}
@@ -166,7 +167,7 @@ func (v *validator) citations(
 	citations []Citation,
 ) {
 	if len(citations) == 0 {
-		v.add(location+".citations", "expected at least one citation")
+		v.Add(location+".citations", "expected at least one citation")
 	}
 	seen := make(map[string]struct{}, len(citations))
 	primaryCited := false
@@ -175,21 +176,21 @@ func (v *validator) citations(
 		if item.Standard == primaryStandard {
 			primaryCited = true
 		}
-		if !contains(v.standardKeys, item.Standard) {
-			v.addf(itemLocation+".standard", "unknown standard %q", item.Standard)
+		if !check.Contains(v.standardKeys, item.Standard) {
+			v.Addf(itemLocation+".standard", "unknown standard %q", item.Standard)
 		}
-		v.requiredString(itemLocation+".clause", item.Clause)
+		v.RequiredString(itemLocation+".clause", item.Clause)
 		v.sourceURI(itemLocation+".uri", item.Standard, item.URI)
 		key := item.Standard + "\x00" + item.Clause + "\x00" + item.URI
 		if _, duplicate := seen[key]; duplicate {
-			v.add(itemLocation, "duplicate citation")
+			v.Add(itemLocation, "duplicate citation")
 		}
 		seen[key] = struct{}{}
 	}
 	if len(citations) > 0 &&
-		contains(v.standardKeys, primaryStandard) &&
+		check.Contains(v.standardKeys, primaryStandard) &&
 		!primaryCited {
-		v.addf(
+		v.Addf(
 			location+".citations",
 			"expected at least one citation for primary standard %q",
 			primaryStandard,
@@ -198,93 +199,93 @@ func (v *validator) citations(
 }
 
 func (v *validator) applicability(location string, item Requirement) {
-	if !v.enum(location+".applicability", item.Applicability, applicabilityValues) {
+	if !v.Enum(location+".applicability", item.Applicability, applicabilityValues) {
 		return
 	}
 	rationaleLocation := location + ".applicability_rationale"
 	if item.Applicability != "applicable" {
-		if !nonempty(item.ApplicabilityRationale) {
-			v.addf(rationaleLocation, "required for %s", item.Applicability)
+		if !check.Nonempty(item.ApplicabilityRationale) {
+			v.Addf(rationaleLocation, "required for %s", item.Applicability)
 		} else {
-			v.requiredString(rationaleLocation, item.ApplicabilityRationale)
+			v.RequiredString(rationaleLocation, item.ApplicabilityRationale)
 		}
 	} else if item.ApplicabilityRationale != "" {
-		v.requiredString(rationaleLocation, item.ApplicabilityRationale)
+		v.RequiredString(rationaleLocation, item.ApplicabilityRationale)
 	}
 }
 
 func (v *validator) owner(location string, item *Owner) {
 	if item == nil {
-		v.add(location+".owner", "expected an object")
+		v.Add(location+".owner", "expected an object")
 		return
 	}
 	location += ".owner"
 	if v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone) {
-		v.add(location+".milestone", "invalid milestone")
+		v.Add(location+".milestone", "invalid milestone")
 	}
 	if item.Issue != nil &&
 		(v.policy.Issue == nil || !v.policy.Issue.MatchString(*item.Issue)) {
-		v.add(location+".issue", "invalid issue reference")
+		v.Add(location+".issue", "invalid issue reference")
 	}
-	if !contains(v.policy.Workstreams, item.Workstream) {
-		v.add(location+".workstream", "unknown workstream")
+	if !check.Contains(v.policy.Workstreams, item.Workstream) {
+		v.Add(location+".workstream", "unknown workstream")
 	}
 }
 
 func (v *validator) verification(location string, item *Verification) {
 	if item == nil {
-		v.add(location+".planned_verification", "expected an object")
+		v.Add(location+".planned_verification", "expected an object")
 		return
 	}
 	location += ".planned_verification"
-	if v.stringList(location+".levels", item.Levels, true) {
+	if v.StringList(location+".levels", item.Levels, true) {
 		var unknown []string
 		for _, level := range item.Levels {
-			if !contains(v.policy.VerificationLevels, level) {
+			if !check.Contains(v.policy.VerificationLevels, level) {
 				unknown = append(unknown, level)
 			}
 		}
 		if len(unknown) > 0 {
 			sort.Strings(unknown)
-			v.addf(location+".levels", "unsupported values %q", unknown)
+			v.Addf(location+".levels", "unsupported values %q", unknown)
 		}
 	}
-	v.stringList(location+".evidence", item.Evidence, true)
+	v.StringList(location+".evidence", item.Evidence, true)
 }
 
 func (v *validator) evidenceStatus(location string, item Requirement) {
 	location += ".evidence_status"
-	if !v.enum(location, item.EvidenceStatus, evidenceStatusValues) {
+	if !v.Enum(location, item.EvidenceStatus, evidenceStatusValues) {
 		return
 	}
 	switch item.Applicability {
 	case "deferred":
 		if item.EvidenceStatus != "deferred" {
-			v.add(location, "deferred item must be deferred")
+			v.Add(location, "deferred item must be deferred")
 		}
 	case "not-applicable":
 		if item.EvidenceStatus != "not-applicable" {
-			v.add(location, "not-applicable item must be not-applicable")
+			v.Add(location, "not-applicable item must be not-applicable")
 		}
 	case "applicable":
 		if item.EvidenceStatus == "deferred" || item.EvidenceStatus == "not-applicable" {
-			v.add(location, "applicable item has incompatible status")
+			v.Add(location, "applicable item has incompatible status")
 		}
 	}
 }
 
 func (v *validator) traceability(location string, item *Traceability) {
 	if item == nil {
-		v.add(location+".traceability", "expected an object")
+		v.Add(location+".traceability", "expected an object")
 		return
 	}
 	location += ".traceability"
-	v.stringList(location+".adrs", item.ADRs, false)
-	v.stringList(location+".threats", item.Threats, false)
-	if v.stringList(location+".risks", item.Risks, false) {
+	v.StringList(location+".adrs", item.ADRs, false)
+	v.StringList(location+".threats", item.Threats, false)
+	if v.StringList(location+".risks", item.Risks, false) {
 		for index, risk := range item.Risks {
 			if v.policy.Risk == nil || !v.policy.Risk.MatchString(risk) {
-				v.addf(fmt.Sprintf("%s.risks[%d]", location, index), "invalid risk %q", risk)
+				v.Addf(fmt.Sprintf("%s.risks[%d]", location, index), "invalid risk %q", risk)
 			}
 		}
 	}
@@ -293,29 +294,29 @@ func (v *validator) traceability(location string, item *Traceability) {
 func (v *validator) supersession(index int, item Supersession) {
 	location := fmt.Sprintf("supersessions[%d]", index)
 	if !RequirementIDPattern.MatchString(item.RetiredID) {
-		v.add(location+".retired_id", "invalid requirement ID")
-	} else if !v.insertUnique(v.retiredIDs, item.RetiredID) {
-		v.addf(location+".retired_id", "duplicate retired ID %q", item.RetiredID)
+		v.Add(location+".retired_id", "invalid requirement ID")
+	} else if !v.InsertUnique(v.retiredIDs, item.RetiredID) {
+		v.Addf(location+".retired_id", "duplicate retired ID %q", item.RetiredID)
 	}
-	if contains(v.activeIDs, item.RetiredID) {
-		v.add(location+".retired_id", "retired ID is still active")
+	if check.Contains(v.activeIDs, item.RetiredID) {
+		v.Add(location+".retired_id", "retired ID is still active")
 	}
-	if v.stringList(location+".replacement_ids", item.ReplacementIDs, true) {
+	if v.StringList(location+".replacement_ids", item.ReplacementIDs, true) {
 		for _, replacementID := range item.ReplacementIDs {
-			if !contains(v.activeIDs, replacementID) {
-				v.addf(location+".replacement_ids", "unknown active ID %q", replacementID)
+			if !check.Contains(v.activeIDs, replacementID) {
+				v.Addf(location+".replacement_ids", "unknown active ID %q", replacementID)
 			}
 		}
 	}
-	v.requiredString(location+".rationale", item.Rationale)
+	v.RequiredString(location+".rationale", item.Rationale)
 }
 
 func (v *validator) sourceURI(location, standardKey, value string) {
-	if !v.requiredString(location, value) {
+	if !v.RequiredString(location, value) {
 		return
 	}
 	if err := validateSourceURI(v.policy, standardKey, value); err != nil {
-		v.add(location, err.Error())
+		v.Add(location, err.Error())
 	}
 }
 
@@ -361,97 +362,4 @@ func validateSourceURI(policy Policy, standardKey, value string) error {
 		)
 	}
 	return nil
-}
-
-func (v *validator) requiredString(location, value string) bool {
-	if !nonempty(value) {
-		v.add(location, "expected a non-empty string")
-		return false
-	}
-	if len(value) > MaxStringBytes {
-		v.addf(location, "exceeds %d-byte limit", MaxStringBytes)
-		return false
-	}
-	return true
-}
-
-func (v *validator) stringList(location string, values []string, requireItems bool) bool {
-	if values == nil || requireItems && len(values) == 0 {
-		expectation := "expected an array"
-		if requireItems {
-			expectation = "expected a non-empty array"
-		}
-		v.add(location, expectation)
-		return false
-	}
-	valid := true
-	seen := make(map[string]struct{}, len(values))
-	for index, value := range values {
-		itemLocation := fmt.Sprintf("%s[%d]", location, index)
-		if !v.requiredString(itemLocation, value) {
-			valid = false
-		}
-		if _, duplicate := seen[value]; duplicate {
-			v.addf(itemLocation, "duplicate value %q", value)
-			valid = false
-		}
-		seen[value] = struct{}{}
-	}
-	return valid
-}
-
-func (v *validator) enum(
-	location string,
-	value string,
-	allowed map[string]struct{},
-) bool {
-	if contains(allowed, value) {
-		return true
-	}
-	v.addf(location, "unsupported value %q", value)
-	return false
-}
-
-func (v *validator) insertUnique(values map[string]struct{}, value string) bool {
-	if contains(values, value) {
-		return false
-	}
-	values[value] = struct{}{}
-	return true
-}
-
-func (v *validator) add(location, message string) {
-	v.errs = append(v.errs, location+": "+message)
-}
-
-func (v *validator) addf(location, format string, args ...any) {
-	v.add(location, fmt.Sprintf(format, args...))
-}
-
-func stringSet(values ...string) map[string]struct{} {
-	result := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		result[value] = struct{}{}
-	}
-	return result
-}
-
-func contains(values map[string]struct{}, value string) bool {
-	_, ok := values[value]
-	return ok
-}
-
-func nonempty(value string) bool {
-	return strings.TrimSpace(value) != ""
-}
-
-func sortedSetDifference(left, right map[string]struct{}) []string {
-	var result []string
-	for value := range left {
-		if !contains(right, value) {
-			result = append(result, value)
-		}
-	}
-	sort.Strings(result)
-	return result
 }

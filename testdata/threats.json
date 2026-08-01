@@ -1,0 +1,83 @@
+{
+  "document_type": "threat_model",
+  "schema_version": 1,
+  "document_version": "0.1.0",
+  "last_reviewed": "2026-07-31",
+  "assets": [
+    {
+      "id": "AST-001",
+      "name": "Client credentials",
+      "description": "Registered client secrets and authentication material."
+    },
+    {
+      "id": "AST-002",
+      "name": "Token signing keys",
+      "description": "Private keys that sign issued tokens."
+    }
+  ],
+  "trust_boundaries": [
+    {
+      "id": "TB-001",
+      "name": "Public network to token endpoint",
+      "description": "Requests crossing from the public network into the token service."
+    }
+  ],
+  "threats": [
+    {
+      "id": "THRT-001",
+      "title": "Credential stuffing against the token endpoint",
+      "description": "An attacker replays leaked client credentials to obtain tokens.",
+      "severity": "critical",
+      "disposition": "mitigated",
+      "affected_assets": ["AST-001"],
+      "trust_boundaries": ["TB-001"],
+      "owner": { "milestone": "M1", "issue": "#10", "workstream": "Protocol" },
+      "mitigations": {
+        "adrs": [],
+        "requirements": ["EXCORE-001"],
+        "tests": ["token endpoint negative suite"],
+        "risks": []
+      }
+    },
+    {
+      "id": "THRT-002",
+      "title": "Signing-key exfiltration by a platform insider",
+      "description": "An operator with host access copies the token signing keys.",
+      "severity": "high",
+      "disposition": "accepted",
+      "disposition_rationale": "Host-level insider access is accepted until dedicated key custody lands.",
+      "affected_assets": ["AST-002"],
+      "trust_boundaries": [],
+      "owner": { "milestone": "M10", "issue": null, "workstream": "Platform" },
+      "mitigations": {
+        "adrs": [],
+        "requirements": [],
+        "tests": [],
+        "risks": ["R12"]
+      }
+    },
+    {
+      "id": "THRT-003",
+      "title": "Metadata downgrade over plain HTTP",
+      "description": "A network attacker serves tampered discovery metadata over an insecure channel.",
+      "severity": "medium",
+      "disposition": "open",
+      "affected_assets": ["AST-001", "AST-002"],
+      "trust_boundaries": ["TB-001"],
+      "owner": { "milestone": "M0", "issue": "#7", "workstream": "Platform" },
+      "mitigations": {
+        "adrs": [],
+        "requirements": ["RFCX-001"],
+        "tests": [],
+        "risks": []
+      }
+    }
+  ],
+  "supersessions": [
+    {
+      "retired_id": "THRT-900",
+      "replacement_ids": ["THRT-001"],
+      "rationale": "Split credential replay out of the combined endpoint-abuse threat."
+    }
+  ]
+}

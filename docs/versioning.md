@@ -2,25 +2,26 @@
 
 ## Version surfaces
 
-`reqmatrix` carries four versioned surfaces, reported by
-`reqmatrix version`:
+The tool carries five versioned surfaces, reported by `matrix version`:
 
-| Surface               | Declared in                     | Compatibility rule                                                   |
-| --------------------- | ------------------------------- | -------------------------------------------------------------------- |
-| Tool release          | git tag `vX.Y.Z`                | Semantic Versioning for every guarantee below                        |
-| CLI contract          | [cli.md](cli.md)                | additive within a contract version; breaking changes bump the tool major version |
-| Matrix schema         | [schema.md](schema.md)          | one schema version per document; a new schema version bumps the tool major version, and the tool states which schema versions it reads |
-| Configuration schema  | [config.md](config.md)          | same policy as the matrix schema                                     |
+| Surface               | Declared in                                          | Compatibility rule                                                   |
+| --------------------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| Tool release          | git tag `vX.Y.Z`                                     | Semantic Versioning for every guarantee below                        |
+| CLI contract          | [cli.md](cli.md)                                     | additive within a contract version; breaking changes bump the tool major version |
+| Requirements schema   | [schema-requirements.md](schema-requirements.md)     | one schema version per document; a new schema version bumps the tool major version, and the tool states which schema versions it reads |
+| Threat-model schema   | [schema-threat-model.md](schema-threat-model.md)     | same policy                                                          |
+| Configuration schema  | [config.md](config.md)                               | same policy                                                          |
 
 Within a tool major version:
 
 - **Patch** releases fix defects without changing accepted inputs or
   rendered bytes for previously valid inputs, except where the previous
   behavior was itself a defect (documented in the changelog).
-- **Minor** releases may add commands, flags, optional configuration
-  members, and template data, and may change rendered output. A consumer
-  that pins an exact version is unaffected until it updates, and
-  `render -check` makes any output change visible at update time.
+- **Minor** releases may add commands, flags, document types, optional
+  configuration members, and template data, and may change rendered
+  output. A consumer that pins an exact version is unaffected until it
+  updates, and `render -check` makes any output change visible at update
+  time.
 - **Major** releases may change the CLI contract, schema versions, or
   validation strictness in breaking ways, with migration notes in the
   changelog.
@@ -31,9 +32,10 @@ promises: minor releases may break, and the changelog records every break.
 ## Release process
 
 1. Update `CHANGELOG.md` and the `toolVersion` constant in
-   `cmd/reqmatrix/main.go` to the release version.
+   `cmd/matrix/main.go` to the release version.
 2. CI must be green (formatting, `go vet`, race-enabled tests, tidy and
-   dependency-free module checks).
+   dependency-free module checks, fixture self-checks for both document
+   types).
 3. Tag the release commit `vX.Y.Z`. The tag push triggers the
    release-verification workflow, which re-runs the full verification suite
    against the tagged commit and fails if the embedded `toolVersion` does
@@ -55,7 +57,7 @@ Pin an exact version in the invocation (or in a `go.mod` of a dedicated
 tools module) and let the Go toolchain verify it:
 
 ```sh
-go run github.com/sofired/matrix-service/cmd/reqmatrix@v0.1.0 ...
+go run github.com/sofired/matrix-service/cmd/matrix@v0.1.0 ...
 ```
 
 - `go run`/`go install` with an explicit `@vX.Y.Z` resolve through the
@@ -70,7 +72,7 @@ go run github.com/sofired/matrix-service/cmd/reqmatrix@v0.1.0 ...
 ## Update policy
 
 - Consumers update by changing the pinned version in one place and
-  re-running their matrix checks; `render -check` surfaces rendering
+  re-running their document checks; `render -check` surfaces rendering
   differences, and validation surfaces strictness changes.
 - Enable automated dependency-update tooling (for example Dependabot on the
   pinned invocation or tools module) so security and correctness fixes

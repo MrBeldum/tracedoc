@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sofired/matrix-service/internal/check"
 	"github.com/sofired/matrix-service/internal/matrix"
 	"github.com/sofired/matrix-service/internal/policy"
 	"github.com/sofired/matrix-service/internal/testsupport"
@@ -15,7 +16,11 @@ func fixturePolicy(t *testing.T) matrix.Policy {
 	if err != nil {
 		t.Fatalf("load fixture config: %v", err)
 	}
-	return config.MatrixPolicy()
+	pol, err := config.RequirementsPolicy()
+	if err != nil {
+		t.Fatalf("compile requirements policy: %v", err)
+	}
+	return pol
 }
 
 func fixtureDocument(t *testing.T) matrix.Document {
@@ -106,6 +111,13 @@ func TestMatrixValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "wrong document type",
+			want: `document_type: expected "requirements"`,
+			mutate: func(doc *matrix.Document) {
+				doc.DocumentType = "threat_model"
+			},
+		},
+		{
 			name: "unsupported schema version",
 			want: "schema_version: expected 1",
 			mutate: func(doc *matrix.Document) {
@@ -116,7 +128,7 @@ func TestMatrixValidation(t *testing.T) {
 			name: "malformed matrix version",
 			want: "expected a semantic version",
 			mutate: func(doc *matrix.Document) {
-				doc.MatrixVersion = "1.0.0-01"
+				doc.DocumentVersion = "1.0.0-01"
 			},
 		},
 		{
@@ -273,7 +285,7 @@ func TestMatrixValidation(t *testing.T) {
 			name: "oversized string",
 			want: "exceeds 16384-byte limit",
 			mutate: func(doc *matrix.Document) {
-				doc.Requirements[0].Title = strings.Repeat("x", matrix.MaxStringBytes+1)
+				doc.Requirements[0].Title = strings.Repeat("x", check.MaxStringBytes+1)
 			},
 		},
 		{
@@ -288,7 +300,7 @@ func TestMatrixValidation(t *testing.T) {
 			want: "applicability_rationale: exceeds 16384-byte limit",
 			mutate: func(doc *matrix.Document) {
 				requirementByID(t, doc, "EXCORE-002").ApplicabilityRationale =
-					strings.Repeat("x", matrix.MaxStringBytes+1)
+					strings.Repeat("x", check.MaxStringBytes+1)
 			},
 		},
 		{
@@ -296,7 +308,7 @@ func TestMatrixValidation(t *testing.T) {
 			want: "applicability_rationale: exceeds 16384-byte limit",
 			mutate: func(doc *matrix.Document) {
 				doc.Requirements[0].ApplicabilityRationale =
-					strings.Repeat("x", matrix.MaxStringBytes+1)
+					strings.Repeat("x", check.MaxStringBytes+1)
 			},
 		},
 		{

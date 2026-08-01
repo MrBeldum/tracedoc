@@ -1,4 +1,4 @@
-package matrix
+package threats
 
 import (
 	"reflect"
@@ -9,7 +9,9 @@ import (
 
 // Compare checks that candidate is a legal successor of the designated
 // accepted baseline. Both documents must already pass Validate; the
-// cross-version rules themselves live in the continuity package.
+// cross-version rules themselves live in the continuity package. Compare
+// never re-resolves requirement links: baseline links were valid against
+// the requirements matrix of their era.
 func Compare(
 	baseline Document,
 	candidate Document,
@@ -25,13 +27,13 @@ func Compare(
 		snapshot(candidate),
 		changed,
 		rules,
-		continuity.Labels{IDNoun: "requirement"},
+		continuity.Labels{IDNoun: "threat"},
 	)
 }
 
 func snapshot(doc Document) continuity.Snapshot {
-	active := make(map[string]struct{}, len(doc.Requirements))
-	for _, item := range doc.Requirements {
+	active := make(map[string]struct{}, len(doc.Threats))
+	for _, item := range doc.Threats {
 		active[item.ID] = struct{}{}
 	}
 	supersessions := make(map[string][]string, len(doc.Supersessions))

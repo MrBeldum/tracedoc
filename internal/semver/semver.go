@@ -1,20 +1,37 @@
-package matrix
+// Package semver parses and orders Semantic Versioning 2.0.0 version
+// strings for document version transitions.
+package semver
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-type semver struct {
+// Pattern is the schema-owned format for document_version values.
+var Pattern = regexp.MustCompile(
+	`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)` +
+		`(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)` +
+		`(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?` +
+		`(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
+)
+
+// Version is a parsed semantic version.
+type Version struct {
 	numbers    [3]int
 	prerelease []string
 }
 
-// parseSemver assumes the value already matches MatrixVersionPattern.
-func parseSemver(value string) semver {
+// Major returns the major version number.
+func (v Version) Major() int {
+	return v.numbers[0]
+}
+
+// Parse assumes the value already matches Pattern.
+func Parse(value string) Version {
 	value, _, _ = strings.Cut(value, "+")
 	core, prerelease, hasPrerelease := strings.Cut(value, "-")
-	var result semver
+	var result Version
 	for index, part := range strings.SplitN(core, ".", 3) {
 		result.numbers[index], _ = strconv.Atoi(part)
 	}
@@ -24,9 +41,9 @@ func parseSemver(value string) semver {
 	return result
 }
 
-// compareSemver orders two versions per the Semantic Versioning 2.0.0
-// precedence rules, ignoring build metadata.
-func compareSemver(left, right semver) int {
+// Compare orders two versions per the Semantic Versioning 2.0.0 precedence
+// rules, ignoring build metadata.
+func Compare(left, right Version) int {
 	for index := range left.numbers {
 		if left.numbers[index] != right.numbers[index] {
 			return sign(left.numbers[index] - right.numbers[index])
