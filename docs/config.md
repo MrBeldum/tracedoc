@@ -51,7 +51,7 @@ Example:
 | `workstreams`         | non-empty list of allowed `owner.workstream` values                         |
 | `verification_levels` | non-empty list of allowed `planned_verification.levels` values (`^[a-z][a-z0-9-]*$`) |
 | `render`              | presentation strings; see below                                             |
-| `version_transitions` | boolean switches for the `compare` command; see [cli.md](cli.md)            |
+| `version_transitions` | boolean switches for the `compare` command; see [cli.md](cli.md), including the reachability caveat on `require_major_on_schema_change` |
 
 ### `standard_sources[]`
 
