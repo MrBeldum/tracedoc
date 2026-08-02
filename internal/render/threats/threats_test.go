@@ -87,6 +87,46 @@ func TestRenderingEscapesUntrustedContent(t *testing.T) {
 	}
 }
 
+// TestRenderRejectsUnvalidatedDocument is the regression test companion to
+// the requirements-renderer panic: the threats renderer only survived a nil
+// Owner by accident, because text/template recovers panics raised inside
+// template funcs into errors. Render must report a descriptive error
+// directly, independent of that incidental protection.
+func TestRenderRejectsUnvalidatedDocument(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*threatsdoc.Document)
+		want   string
+	}{
+		{
+			name:   "nil owner",
+			mutate: func(doc *threatsdoc.Document) { doc.Threats[0].Owner = nil },
+			want:   "must pass validation",
+		},
+		{
+			name:   "nil mitigations",
+			mutate: func(doc *threatsdoc.Document) { doc.Threats[0].Mitigations = nil },
+			want:   "must pass validation",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc := fixtureDocument(t)
+			test.mutate(&doc)
+
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("Render panicked on an unvalidated document: %v", r)
+				}
+			}()
+			_, err := Render(doc, fixtureOptions(), "")
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected error containing %q, got %v", test.want, err)
+			}
+		})
+	}
+}
+
 func TestViewGrouping(t *testing.T) {
 	doc := fixtureDocument(t)
 	view := newView(doc, fixtureOptions())

@@ -4,6 +4,7 @@ package threats
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 	"text/template"
 
@@ -43,13 +44,39 @@ type severitySection struct {
 }
 
 // Render renders doc with the embedded default template, or with the
-// consumer template text when templateText is non-empty.
+// consumer template text when templateText is non-empty. The doc must
+// already have passed threats.Validate; a document missing required
+// objects yields an error, never a panic.
 func Render(doc threats.Document, options render.Options, templateText string) (string, error) {
+	if err := requireValidated(doc); err != nil {
+		return "", err
+	}
 	if templateText == "" {
 		templateText = defaultTemplate
 	}
 	extra := template.FuncMap{"owner": ownerText}
 	return render.Execute(templateText, options, extra, newView(doc, options))
+}
+
+// requireValidated reports an error, rather than letting the "owner"
+// template function or the default template dereference a nil pointer,
+// when doc contains a threat that has not passed threats.Validate.
+func requireValidated(doc threats.Document) error {
+	for index, item := range doc.Threats {
+		if item.Owner == nil {
+			return fmt.Errorf(
+				"threats[%d] has no owner; the document must pass validation before rendering",
+				index,
+			)
+		}
+		if item.Mitigations == nil {
+			return fmt.Errorf(
+				"threats[%d] has no mitigations; the document must pass validation before rendering",
+				index,
+			)
+		}
+	}
+	return nil
 }
 
 func newView(doc threats.Document, options render.Options) view {

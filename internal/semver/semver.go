@@ -4,7 +4,6 @@ package semver
 
 import (
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -16,15 +15,15 @@ var Pattern = regexp.MustCompile(
 		`(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
 )
 
-// Version is a parsed semantic version.
+// Version is a parsed semantic version. The three core components are kept
+// as the original digit strings, not converted to int: Pattern forbids
+// leading zeros, so comparing them by length and then lexically (the same
+// trick compareIdentifier uses for prerelease identifiers) reproduces
+// numeric ordering at any magnitude without risking strconv.Atoi overflow
+// on a pattern-valid but arbitrarily large component.
 type Version struct {
-	numbers    [3]int
+	core       [3]string
 	prerelease []string
-}
-
-// Major returns the major version number.
-func (v Version) Major() int {
-	return v.numbers[0]
 }
 
 // Parse assumes the value already matches Pattern.
@@ -33,7 +32,7 @@ func Parse(value string) Version {
 	core, prerelease, hasPrerelease := strings.Cut(value, "-")
 	var result Version
 	for index, part := range strings.SplitN(core, ".", 3) {
-		result.numbers[index], _ = strconv.Atoi(part)
+		result.core[index] = part
 	}
 	if hasPrerelease {
 		result.prerelease = strings.Split(prerelease, ".")
@@ -41,12 +40,21 @@ func Parse(value string) Version {
 	return result
 }
 
+// CompareMajor orders two versions by their major component alone, using
+// the same length-then-lexical rule as Compare. Callers that only need a
+// major-version comparison (for example a schema-change transition rule)
+// should use this instead of Compare so they never depend on minor or
+// patch ordering.
+func CompareMajor(left, right Version) int {
+	return compareNumericComponent(left.core[0], right.core[0])
+}
+
 // Compare orders two versions per the Semantic Versioning 2.0.0 precedence
 // rules, ignoring build metadata.
 func Compare(left, right Version) int {
-	for index := range left.numbers {
-		if left.numbers[index] != right.numbers[index] {
-			return sign(left.numbers[index] - right.numbers[index])
+	for index := range left.core {
+		if result := compareNumericComponent(left.core[index], right.core[index]); result != 0 {
+			return result
 		}
 	}
 	switch {
@@ -70,12 +78,7 @@ func compareIdentifier(left, right string) int {
 	rightNumeric := isNumericIdentifier(right)
 	switch {
 	case leftNumeric && rightNumeric:
-		// Semver numeric identifiers carry no leading zeros, so ordering by
-		// length and then lexically equals numeric ordering at any magnitude.
-		if len(left) != len(right) {
-			return sign(len(left) - len(right))
-		}
-		return strings.Compare(left, right)
+		return compareNumericComponent(left, right)
 	case leftNumeric:
 		return -1
 	case rightNumeric:
@@ -83,6 +86,19 @@ func compareIdentifier(left, right string) int {
 	default:
 		return strings.Compare(left, right)
 	}
+}
+
+// compareNumericComponent orders two all-digit strings numerically without
+// converting either to an int. Both Pattern (for the three core version
+// components) and the semver prerelease grammar (for numeric identifiers)
+// forbid leading zeros, so ordering by length and then lexically equals
+// numeric ordering at any magnitude — including magnitudes too large for
+// strconv.Atoi, which would otherwise silently overflow to 0.
+func compareNumericComponent(left, right string) int {
+	if len(left) != len(right) {
+		return sign(len(left) - len(right))
+	}
+	return strings.Compare(left, right)
 }
 
 func isNumericIdentifier(value string) bool {

@@ -20,8 +20,8 @@ type TransitionRules struct {
 	RequireMajorOnSchemaChange       bool
 }
 
-// Snapshot is the doctype-independent view of one validated document that
-// the continuity rules operate on.
+// Snapshot is the document-type-independent view of one validated document
+// that the continuity rules operate on.
 type Snapshot struct {
 	SchemaVersion int
 	Version       string
@@ -113,10 +113,11 @@ func Compare(
 	// reads more than one schema version for the document type; the CLI
 	// validates both documents first, so while exactly one schema version
 	// is readable this rule is a declared forward-looking contract for the
-	// first schema migration.
+	// first schema migration. Tracked:
+	// https://github.com/sofired/matrix-service/issues/4
 	if rules.RequireMajorOnSchemaChange &&
 		candidate.SchemaVersion != baseline.SchemaVersion &&
-		candidateVersion.Major() <= baselineVersion.Major() {
+		semver.CompareMajor(candidateVersion, baselineVersion) <= 0 {
 		add(
 			"schema_version changed from %d to %d without a major document_version increase",
 			baseline.SchemaVersion,
@@ -143,8 +144,11 @@ func equalStringSets(left, right []string) bool {
 	return true
 }
 
+// sortedKeys returns nil, not an empty non-nil slice, when values is empty —
+// the same convention check.SortedSetDifference uses, so callers of either
+// helper can treat "no keys" uniformly.
 func sortedKeys[V any](values map[string]V) []string {
-	result := make([]string, 0, len(values))
+	var result []string
 	for key := range values {
 		result = append(result, key)
 	}

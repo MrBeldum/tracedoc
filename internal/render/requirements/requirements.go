@@ -4,6 +4,7 @@ package requirements
 
 import (
 	_ "embed"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,13 +47,48 @@ type ownershipSection struct {
 }
 
 // Render renders doc with the embedded default template, or with the
-// consumer template text when templateText is non-empty.
+// consumer template text when templateText is non-empty. The doc must
+// already have passed matrix.Validate; a document missing required objects
+// yields an error, never a panic.
 func Render(doc matrix.Document, options render.Options, templateText string) (string, error) {
+	if err := requireValidated(doc); err != nil {
+		return "", err
+	}
 	if templateText == "" {
 		templateText = defaultTemplate
 	}
 	extra := template.FuncMap{"owner": ownerText}
 	return render.Execute(templateText, options, extra, newView(doc, options))
+}
+
+// requireValidated reports an error, rather than letting newView or the
+// template dereference a nil pointer, when doc contains a requirement that
+// has not passed matrix.Validate. Owner is dereferenced by newView itself
+// (to build the ownership index) and by the "owner" template function;
+// PlannedVerification and Traceability are dereferenced by the default
+// template.
+func requireValidated(doc matrix.Document) error {
+	for index, item := range doc.Requirements {
+		if item.Owner == nil {
+			return fmt.Errorf(
+				"requirements[%d] has no owner; the document must pass validation before rendering",
+				index,
+			)
+		}
+		if item.PlannedVerification == nil {
+			return fmt.Errorf(
+				"requirements[%d] has no planned verification; the document must pass validation before rendering",
+				index,
+			)
+		}
+		if item.Traceability == nil {
+			return fmt.Errorf(
+				"requirements[%d] has no traceability; the document must pass validation before rendering",
+				index,
+			)
+		}
+	}
+	return nil
 }
 
 func newView(doc matrix.Document, options render.Options) view {

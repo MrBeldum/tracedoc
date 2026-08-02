@@ -163,6 +163,51 @@ func TestOwnershipIndex(t *testing.T) {
 	}
 }
 
+// TestRenderRejectsUnvalidatedDocument is the regression test for the
+// panic that newView used to raise when Render was called on a document
+// that had not passed matrix.Validate: item.Owner (and, symmetrically,
+// PlannedVerification and Traceability) were dereferenced with no nil
+// guard. Render must now report a descriptive error instead of panicking.
+func TestRenderRejectsUnvalidatedDocument(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*matrix.Document)
+		want   string
+	}{
+		{
+			name:   "nil owner",
+			mutate: func(doc *matrix.Document) { doc.Requirements[0].Owner = nil },
+			want:   "must pass validation",
+		},
+		{
+			name:   "nil planned verification",
+			mutate: func(doc *matrix.Document) { doc.Requirements[0].PlannedVerification = nil },
+			want:   "must pass validation",
+		},
+		{
+			name:   "nil traceability",
+			mutate: func(doc *matrix.Document) { doc.Requirements[0].Traceability = nil },
+			want:   "must pass validation",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc := fixtureDocument(t)
+			test.mutate(&doc)
+
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("Render panicked on an unvalidated document: %v", r)
+				}
+			}()
+			_, err := Render(doc, fixtureOptions(), "")
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected error containing %q, got %v", test.want, err)
+			}
+		})
+	}
+}
+
 func TestConsumerTemplateOverride(t *testing.T) {
 	template := `{{define "document"}}custom {{.Document.DocumentVersion}} {{issueURL "#9"}}{{end}}`
 	rendered, err := Render(fixtureDocument(t), fixtureOptions(), template)

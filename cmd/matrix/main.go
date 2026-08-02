@@ -167,11 +167,24 @@ func loadRequirements(
 	return doc, 0
 }
 
-// loadThreats decodes and validates a threat-model document; requirements
-// may be nil to skip link resolution.
-func loadThreats(
+// decodeThreats decodes a threat-model document without validating it.
+// Split out from loadThreats so a caller that needs to inspect the decoded
+// document before validation (for example, to run the requirement-links
+// gate in runValidate) can do so without decoding the same bytes twice.
+func decodeThreats(data []byte, label string, stderr io.Writer) (threats.Document, int) {
+	doc, err := threats.Decode(data)
+	if err != nil {
+		fmt.Fprintf(stderr, "error: cannot decode %s: %v\n", label, err)
+		return threats.Document{}, 2
+	}
+	return doc, 0
+}
+
+// validateThreats validates an already-decoded threat-model document;
+// requirements may be nil to skip link resolution.
+func validateThreats(
 	config *policy.Config,
-	data []byte,
+	doc threats.Document,
 	label string,
 	requirements *threats.RequirementIndex,
 	stderr io.Writer,
@@ -181,16 +194,27 @@ func loadThreats(
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return threats.Document{}, 2
 	}
-	doc, err := threats.Decode(data)
-	if err != nil {
-		fmt.Fprintf(stderr, "error: cannot decode %s: %v\n", label, err)
-		return threats.Document{}, 2
-	}
 	if errs := threats.Validate(doc, pol, requirements); len(errs) > 0 {
 		reportErrors(stderr, label, errs)
 		return threats.Document{}, 1
 	}
 	return doc, 0
+}
+
+// loadThreats decodes and validates a threat-model document; requirements
+// may be nil to skip link resolution.
+func loadThreats(
+	config *policy.Config,
+	data []byte,
+	label string,
+	requirements *threats.RequirementIndex,
+	stderr io.Writer,
+) (threats.Document, int) {
+	doc, code := decodeThreats(data, label, stderr)
+	if code != 0 {
+		return threats.Document{}, code
+	}
+	return validateThreats(config, doc, label, requirements, stderr)
 }
 
 func requirementIndex(doc matrix.Document) *threats.RequirementIndex {
@@ -245,6 +269,11 @@ func runValidate(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "validated %d requirements from %s\n", len(doc.Requirements), *docPath)
 	case document.TypeThreatModel:
+		doc, code := decodeThreats(data, "document", stderr)
+		if code != 0 {
+			return code
+		}
+
 		var index *threats.RequirementIndex
 		if *requirementsPath != "" {
 			requirementsData, requirementsType, code := readTyped(
@@ -266,17 +295,15 @@ func runValidate(args []string, stdout, stderr io.Writer) int {
 				return code
 			}
 			index = requirementIndex(requirementsDoc)
-		} else {
-			preview, err := threats.Decode(data)
-			if err == nil && preview.HasRequirementLinks() {
-				fmt.Fprintln(
-					stderr,
-					"error: threat model references requirement IDs; -requirements is required",
-				)
-				return 2
-			}
+		} else if doc.HasRequirementLinks() {
+			fmt.Fprintln(
+				stderr,
+				"error: threat model references requirement IDs; -requirements is required",
+			)
+			return 2
 		}
-		doc, code := loadThreats(config, data, "document", index, stderr)
+
+		doc, code = validateThreats(config, doc, "document", index, stderr)
 		if code != 0 {
 			return code
 		}

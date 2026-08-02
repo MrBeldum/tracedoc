@@ -43,8 +43,49 @@ func TestPrecedence(t *testing.T) {
 			t.Errorf("expected %q == %q", pair[0], pair[1])
 		}
 	}
+}
 
-	if Parse("2.4.6").Major() != 2 {
-		t.Error("expected major version 2")
+// TestHugeComponentsDoNotOverflow is the regression test for the
+// strconv.Atoi overflow bug: a pattern-valid but arbitrarily large major,
+// minor, or patch value used to silently become 0 on overflow, so it
+// compared as lower than a small version instead of higher.
+func TestHugeComponentsDoNotOverflow(t *testing.T) {
+	huge := Parse("99999999999999999999.0.0")
+	small := Parse("2.0.0")
+	if Compare(huge, small) <= 0 {
+		t.Fatalf(
+			"expected huge major version to sort above %q, got Compare = %d",
+			"2.0.0", Compare(huge, small),
+		)
+	}
+	if Compare(small, huge) >= 0 {
+		t.Fatalf(
+			"expected %q to sort below huge major version, got Compare = %d",
+			"2.0.0", Compare(small, huge),
+		)
+	}
+}
+
+func TestCompareMajor(t *testing.T) {
+	huge := Parse("99999999999999999999.0.0")
+	small := Parse("2.0.0")
+	if CompareMajor(huge, small) <= 0 {
+		t.Fatalf("expected huge major to compare above small major, got %d", CompareMajor(huge, small))
+	}
+	if CompareMajor(small, huge) >= 0 {
+		t.Fatalf("expected small major to compare below huge major, got %d", CompareMajor(small, huge))
+	}
+
+	equalHugeLeft := Parse("99999999999999999999.1.2")
+	equalHugeRight := Parse("99999999999999999999.9.9")
+	if got := CompareMajor(equalHugeLeft, equalHugeRight); got != 0 {
+		t.Fatalf("expected equal huge majors to compare 0, got %d", got)
+	}
+
+	if got := CompareMajor(Parse("1.9.9"), Parse("2.0.0")); got != -1 {
+		t.Fatalf("expected major 1 < major 2, got %d", got)
+	}
+	if got := CompareMajor(Parse("2.0.0"), Parse("2.9.9")); got != 0 {
+		t.Fatalf("expected equal majors to compare 0 regardless of minor/patch, got %d", got)
 	}
 }

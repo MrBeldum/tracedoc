@@ -1,6 +1,7 @@
 package matrix_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -62,9 +63,10 @@ func TestMatrixValidation(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		want   string
-		mutate func(*matrix.Document)
+		name    string
+		want    string
+		notWant string
+		mutate  func(*matrix.Document)
 	}{
 		{
 			name: "duplicate requirement ID",
@@ -207,6 +209,10 @@ func TestMatrixValidation(t *testing.T) {
 		{
 			name: "unknown citation standard",
 			want: `unknown standard "UNKNOWN"`,
+			// An unknown standard has no URI policy to check the citation
+			// URI against; that must not cascade into a second, redundant
+			// "no URI policy" diagnostic for the same citation.
+			notWant: "no URI policy",
 			mutate: func(doc *matrix.Document) {
 				doc.Requirements[0].Citations[0].Standard = "UNKNOWN"
 			},
@@ -346,9 +352,50 @@ func TestMatrixValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			doc := fixtureDocument(t)
 			test.mutate(&doc)
-			if errs := matrix.Validate(doc, pol); !strings.Contains(errs.Error(), test.want) {
+			errs := matrix.Validate(doc, pol)
+			if !strings.Contains(errs.Error(), test.want) {
 				t.Fatalf("expected %q, got:\n%s", test.want, errs)
+			}
+			if test.notWant != "" && strings.Contains(errs.Error(), test.notWant) {
+				t.Fatalf("expected error list to not contain %q, got:\n%s", test.notWant, errs)
 			}
 		})
 	}
+}
+
+// TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree is the
+// security-regression coverage for Owner.Milestone and Owner.Issue: before
+// this fix they were validated solely by the consumer-supplied pattern, so
+// a permissive pattern let an oversized or control-character-bearing value
+// straight through, in violation of the documented 16 KiB bound every
+// validated string field must observe.
+func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
+	pol := fixturePolicy(t)
+
+	t.Run("oversized milestone", func(t *testing.T) {
+		doc := fixtureDocument(t)
+		doc.Requirements[0].Owner.Milestone = strings.Repeat("M", check.MaxStringBytes+1)
+		errs := matrix.Validate(doc, pol)
+		if !strings.Contains(errs.Error(), "exceeds 16384-byte limit") {
+			t.Fatalf("expected oversized-milestone rejection, got:\n%s", errs)
+		}
+	})
+
+	t.Run("issue with a control character is rejected even under a permissive pattern", func(t *testing.T) {
+		// This is the security-regression test: the pattern below accepts
+		// any string, including one carrying a newline, so a value only
+		// the length/control-character bound can catch must still be
+		// rejected.
+		permissive := pol
+		permissive.Issue = regexp.MustCompile(`(?s)^.*$`)
+
+		doc := fixtureDocument(t)
+		issue := "#36\nmalicious content"
+		doc.Requirements[0].Owner.Issue = &issue
+
+		errs := matrix.Validate(doc, permissive)
+		if !strings.Contains(errs.Error(), "contains a control character") {
+			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
+		}
+	})
 }

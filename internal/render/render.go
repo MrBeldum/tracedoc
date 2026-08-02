@@ -1,5 +1,5 @@
-// Package render is the doctype-neutral Markdown rendering engine: the
-// escaping template functions, the template execution contract (a
+// Package render is the document-type-neutral Markdown rendering engine:
+// the escaping template functions, the template execution contract (a
 // "document" root template), and the consumer template-override bounds.
 // Per-document-type views and default templates live in subpackages.
 package render
@@ -42,8 +42,8 @@ func ReadTemplate(path string) (string, error) {
 }
 
 // Execute renders data through the template text. The text must define a
-// non-empty "document" template; extra supplies doctype-specific template
-// functions (for example "owner").
+// non-empty "document" template; extra supplies document-type-specific
+// template functions (for example "owner").
 func Execute(
 	text string,
 	options Options,
@@ -190,10 +190,20 @@ func markdownText(value, lineBreak string) string {
 	).Replace(value)
 }
 
-// LinkDestination escapes value for a Markdown link destination.
+// LinkDestination escapes value for a Markdown link destination. Angle
+// brackets and the raw control bytes that would otherwise break CommonMark
+// line structure (tab, CR, LF) are percent-encoded before the <...> wrapper
+// decision, so none of them can inject a raw newline into the rendered
+// document; only a space or a parenthesis still forces the wrapper.
 func LinkDestination(value string) string {
-	escaped := strings.NewReplacer("<", "%3C", ">", "%3E").Replace(value)
-	if strings.ContainsAny(escaped, " ()\t\r\n") {
+	escaped := strings.NewReplacer(
+		"<", "%3C",
+		">", "%3E",
+		"\t", "%09",
+		"\r", "%0D",
+		"\n", "%0A",
+	).Replace(value)
+	if strings.ContainsAny(escaped, " ()") {
 		return "<" + escaped + ">"
 	}
 	return escaped

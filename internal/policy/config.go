@@ -114,8 +114,8 @@ func (c *Config) RequirementsPolicy() (matrix.Policy, error) {
 	}
 	result := matrix.Policy{
 		RequiredStandards:  make(map[string]struct{}, len(c.Requirements.RequiredStandards)),
-		StandardHosts:      make(map[string]string),
-		LocalSources:       make(map[string]string),
+		StandardHosts:      make(map[string]string, len(c.Requirements.StandardSources)),
+		LocalSources:       make(map[string]string, len(c.Requirements.StandardSources)),
 		Workstreams:        make(map[string]struct{}, len(c.Workstreams)),
 		VerificationLevels: make(map[string]struct{}, len(c.Requirements.VerificationLevels)),
 		Milestone:          c.milestone,
@@ -383,6 +383,13 @@ func validateIssueURLBase(value string) error {
 	return nil
 }
 
+// validateLocalPath deliberately does not reject ".." segments. This tool
+// never opens the path itself — it only echoes it into a citation's
+// rendered Markdown link and, in validateSourceURI, compares it verbatim
+// against the citation URI's parsed path — so there is no local traversal
+// to prevent here. Consumers legitimately point a standard_sources path at
+// a sibling document, for example "../plan.md". Do not start opening this
+// path without re-deriving these bounds from that new capability.
 func validateLocalPath(value string) error {
 	if len(value) > maxValueBytes {
 		return fmt.Errorf("exceeds %d-byte limit", maxValueBytes)

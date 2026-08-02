@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // MaxStringBytes bounds every validated string field in every document.
@@ -22,6 +23,9 @@ var StableIDPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[0-9]{3}$`)
 // Errors is an ordered list of validation failures.
 type Errors []string
 
+// Error joins the accumulated failures into one newline-separated message,
+// satisfying the error interface so Errors can be reported or wrapped like
+// any other error.
 func (errs Errors) Error() string {
 	return strings.Join(errs, "\n")
 }
@@ -49,6 +53,23 @@ func (c *Checker) RequiredString(location, value string) bool {
 	}
 	if len(value) > MaxStringBytes {
 		c.Addf(location, "exceeds %d-byte limit", MaxStringBytes)
+		return false
+	}
+	return true
+}
+
+// BoundedControlFreeString enforces RequiredString and additionally rejects
+// control characters, reporting "contains a control character" when they
+// are present. It reports whether value is safe to further validate (for
+// example against a consumer-supplied regular expression): a value that
+// fails either check is rejected here, before that further check runs, so
+// one malformed value cannot cascade into multiple diagnostics.
+func (c *Checker) BoundedControlFreeString(location, value string) bool {
+	if !c.RequiredString(location, value) {
+		return false
+	}
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		c.Add(location, "contains a control character")
 		return false
 	}
 	return true

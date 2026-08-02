@@ -86,3 +86,37 @@ func TestEscapingFunctions(t *testing.T) {
 		t.Errorf("LinkLabel: got %q", got)
 	}
 }
+
+// TestLinkDestinationNeutralizesLineBreaks is the regression test for the
+// PoC where a newline inside a link destination (reachable via Owner.Issue
+// under a permissive consumer issue_pattern) broke CommonMark structure and
+// injected a raw Markdown line into the rendered document.
+func TestLinkDestinationNeutralizesLineBreaks(t *testing.T) {
+	const poc = "https://good.example/9\n# Injected Heading\nmore"
+	got := LinkDestination(poc)
+	if strings.ContainsAny(got, "\r\n") {
+		t.Fatalf("LinkDestination left a raw newline in the result: %q", got)
+	}
+	for _, want := range []string{"%0A", "# Injected Heading"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("LinkDestination(%q) = %q, want it to contain %q", poc, got, want)
+		}
+	}
+
+	t.Run("tab and carriage return", func(t *testing.T) {
+		got := LinkDestination("a\tb\rc")
+		if strings.ContainsAny(got, "\t\r") {
+			t.Fatalf("LinkDestination left a raw tab or CR in the result: %q", got)
+		}
+		if got != "a%09b%0Dc" {
+			t.Errorf("LinkDestination(%q) = %q", "a\tb\rc", got)
+		}
+	})
+
+	t.Run("newline alone no longer forces the angle-bracket wrapper", func(t *testing.T) {
+		got := LinkDestination("a\nb")
+		if got != "a%0Ab" {
+			t.Errorf("LinkDestination(%q) = %q, want %q", "a\nb", got, "a%0Ab")
+		}
+	})
+}

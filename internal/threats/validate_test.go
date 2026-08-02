@@ -1,9 +1,11 @@
 package threats_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/sofired/matrix-service/internal/check"
 	"github.com/sofired/matrix-service/internal/policy"
 	"github.com/sofired/matrix-service/internal/testsupport"
 	"github.com/sofired/matrix-service/internal/threats"
@@ -346,6 +348,43 @@ func TestThreatModelValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree is the
+// security-regression coverage for Owner.Milestone and Owner.Issue: before
+// this fix they were validated solely by the consumer-supplied pattern, so
+// a permissive pattern let an oversized or control-character-bearing value
+// straight through, in violation of the documented 16 KiB bound every
+// validated string field must observe.
+func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
+	pol := fixturePolicy(t)
+
+	t.Run("oversized milestone", func(t *testing.T) {
+		doc := fixtureDocument(t)
+		doc.Threats[0].Owner.Milestone = strings.Repeat("M", check.MaxStringBytes+1)
+		errs := threats.Validate(doc, pol, fixtureIndex())
+		if !strings.Contains(errs.Error(), "exceeds 16384-byte limit") {
+			t.Fatalf("expected oversized-milestone rejection, got:\n%s", errs)
+		}
+	})
+
+	t.Run("issue with a control character is rejected even under a permissive pattern", func(t *testing.T) {
+		// This is the security-regression test: the pattern below accepts
+		// any string, including one carrying a newline, so a value only
+		// the length/control-character bound can catch must still be
+		// rejected.
+		permissive := pol
+		permissive.Issue = regexp.MustCompile(`(?s)^.*$`)
+
+		doc := fixtureDocument(t)
+		issue := "#36\nmalicious content"
+		doc.Threats[0].Owner.Issue = &issue
+
+		errs := threats.Validate(doc, permissive, fixtureIndex())
+		if !strings.Contains(errs.Error(), "contains a control character") {
+			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
+		}
+	})
 }
 
 func TestRequirementLinksSkippedWithoutIndex(t *testing.T) {

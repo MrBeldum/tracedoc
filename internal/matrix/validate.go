@@ -176,11 +176,17 @@ func (v *validator) citations(
 		if item.Standard == primaryStandard {
 			primaryCited = true
 		}
-		if !check.Contains(v.standardKeys, item.Standard) {
+		standardKnown := check.Contains(v.standardKeys, item.Standard)
+		if !standardKnown {
 			v.Addf(itemLocation+".standard", "unknown standard %q", item.Standard)
 		}
 		v.RequiredString(itemLocation+".clause", item.Clause)
-		v.sourceURI(itemLocation+".uri", item.Standard, item.URI)
+		// An unknown standard has no URI policy to check the citation URI
+		// against, so skip that check here rather than cascade a second,
+		// uninformative "no URI policy" diagnostic for the same citation.
+		if standardKnown {
+			v.sourceURI(itemLocation+".uri", item.Standard, item.URI)
+		}
 		key := item.Standard + "\x00" + item.Clause + "\x00" + item.URI
 		if _, duplicate := seen[key]; duplicate {
 			v.Add(itemLocation, "duplicate citation")
@@ -220,10 +226,16 @@ func (v *validator) owner(location string, item *Owner) {
 		return
 	}
 	location += ".owner"
-	if v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone) {
+	// The pattern check runs only once the value is confirmed non-blank,
+	// bounded, and control-character-free: a consumer-supplied pattern is
+	// policy, not a lexical safety net, so a permissive pattern must never
+	// let an oversized or control-bearing value through undetected.
+	if v.BoundedControlFreeString(location+".milestone", item.Milestone) &&
+		(v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone)) {
 		v.Add(location+".milestone", "invalid milestone")
 	}
 	if item.Issue != nil &&
+		v.BoundedControlFreeString(location+".issue", *item.Issue) &&
 		(v.policy.Issue == nil || !v.policy.Issue.MatchString(*item.Issue)) {
 		v.Add(location+".issue", "invalid issue reference")
 	}
@@ -304,6 +316,9 @@ func (v *validator) supersession(index int, item Supersession) {
 	// An empty replacement set is legal and records withdrawal without a
 	// successor; the member itself stays required so withdrawal is always
 	// an explicit act.
+	//
+	// Chained supersessions (retiring an ID listed as a replacement) are a
+	// schema-2 candidate: https://github.com/sofired/matrix-service/issues/3
 	if v.StringList(location+".replacement_ids", item.ReplacementIDs, false) {
 		for _, replacementID := range item.ReplacementIDs {
 			if !check.Contains(v.activeIDs, replacementID) {

@@ -1,6 +1,15 @@
 // Package strictjson decodes JSON documents under a strict lexical contract:
 // bounded input size, bounded nesting depth, canonical lowercase member names,
 // no duplicate members, no unknown fields, and exactly one top-level value.
+//
+// Decode makes two passes over the same bytes: rejectNonCanonicalMembers
+// walks the raw token stream to enforce member-name and duplicate-member
+// rules, then encoding/json's own strict decode walks it again to enforce
+// structure and populate out. The two passes must keep agreeing about
+// document structure and depth — most importantly MaxDepth — as this
+// package evolves; a change to one walk's traversal (or its depth
+// accounting) without the matching change to the other can let a document
+// past one pass that the other would have rejected.
 package strictjson
 
 import (
