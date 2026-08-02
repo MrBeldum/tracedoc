@@ -120,7 +120,7 @@ without content escaping, so review them like code.
 Each document type has an embedded default template. A consumer template
 supplied with `render -template` replaces presentation entirely while
 keeping validation and data mechanics. It must define a `document`
-template. It receives:
+template, and the template file is limited to 1 MiB. It receives:
 
 - `.Document` — the validated document;
 - `.Render` — the resolved presentation options;
@@ -132,10 +132,15 @@ template. It receives:
   `issueURL`, `join`, `linkDestination`, `linkLabel`, `lower`, `owner`,
   `prose`, and `table`.
 
-Document content must always pass through the escaping functions
+Free-text document fields must always pass through the escaping functions
 (`htmlText`, `prose`, `table`, `linkLabel`, `inlineValues`,
 `linkDestination`, `inlineCode`); emitting document fields raw lets
-document authors inject Markdown or HTML into the rendered output. Section
+document authors inject Markdown or HTML into the rendered output. Stable
+ID fields (`^[A-Z][A-Z0-9]*-[0-9]{3}$`) and the fixed enum vocabularies
+(`applicability`, `evidence_status`, `severity`, `disposition`) are
+exempt in the default templates and may be emitted bare only because the
+schema constrains their character set to values that cannot carry Markdown
+or HTML structure; anything else emitted raw is an injection risk. Section
 layout and precomputed-section membership may change in minor releases;
 pin the tool version to keep byte-identical output, and re-verify consumer
 templates when updating.

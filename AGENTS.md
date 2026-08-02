@@ -40,11 +40,18 @@ Run before committing:
 gofmt -l .
 go vet ./...
 go test -race -count=1 ./...
+go run ./cmd/matrix validate -config testdata/config.json -doc testdata/matrix.json
 go run ./cmd/matrix render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
-go run ./cmd/matrix render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
+go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
 go run ./cmd/matrix validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
+go run ./cmd/matrix render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
+go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
 ```
 
 If an intentional rendering change makes a golden check fail, regenerate
 the affected `testdata/*.md` with the same render command without `-check`
 and commit the result, noting the output change in `CHANGELOG.md`.
+
+The "Self-check fixture documents" step in
+`.github/workflows-staged/ci.yml` is the authoritative list of these
+commands; if the two diverge, CI is correct.

@@ -42,6 +42,9 @@ can serve any project without embedding its policy.
 
 ## Install
 
+The commands below become valid once `v0.1.0` is tagged; `CHANGELOG.md`
+marks the release state.
+
 **With a Go toolchain** (Go 1.26+; toolchain auto-download normally
 resolves this automatically), pin an exact release and run it through the
 Go module system, which verifies the download against the Go checksum

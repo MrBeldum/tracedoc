@@ -60,8 +60,8 @@ document type's default template.
   [text/template](https://pkg.go.dev/text/template) file replaces the
   embedded default. The file must define a `document` template; it receives
   the document type's view data and template functions (see
-  [config.md](config.md#templates)). Templates are trusted consumer input:
-  review them like code.
+  [config.md](config.md#templates)). The template file is limited to 1 MiB.
+  Templates are trusted consumer input: review them like code.
 
 ## `matrix compare -config <path> -baseline <path> -candidate <path>`
 
@@ -91,7 +91,8 @@ document type today, a schema-version difference cannot currently reach
 this rule through the CLI. The rule is a declared forward-looking contract:
 it takes effect with the first tool release that reads more than one schema
 version (the planned migration mechanism in
-[versioning.md](versioning.md#version-surfaces)).
+[versioning.md](versioning.md#version-surfaces)). Tracked as
+[matrix-service#4](https://github.com/sofired/matrix-service/issues/4).
 
 `compare` evaluates exactly two snapshots. It proves continuity between the
 baseline and the candidate; continuity across history follows only when

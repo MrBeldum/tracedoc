@@ -25,9 +25,9 @@ document specifies the requirements-specific members.
 | `title` | string | non-empty                                                        |
 | `uri`   | string | must satisfy the configured source policy for `key` (host or exact local path) |
 
-Every declared standard must be cited by at least one requirement, and every
-standard named in the configuration's `requirements.required_standards`
-must be declared.
+Every declared standard must be the primary standard of at least one
+requirement, and every standard named in the configuration's
+`requirements.required_standards` must be declared.
 
 ## `requirements[]`
 
@@ -59,3 +59,4 @@ a replacement requirement. Lifting this restriction is a schema-2
 candidate; until then, split or merge obligations without retiring IDs that
 appear in `replacement_ids`. (Withdrawing an obligation outright is fully
 supported: retire it with an empty replacement list and a rationale.)
+Tracked as [matrix-service#3](https://github.com/sofired/matrix-service/issues/3).
