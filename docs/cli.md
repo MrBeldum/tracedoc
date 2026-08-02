@@ -9,7 +9,7 @@ not on message wording.
 
 ## Global conventions
 
-- The command is named `matrix`.
+- The command is named `tracedoc`.
 - Diagnostics go to standard error, one `error: ...` line per finding.
 - Success summaries go to standard output.
 - All file paths are taken exactly as given (absolute or relative to the
@@ -32,7 +32,7 @@ pipeline with the matching configuration section
 configuration file without the section for the document's type, is exit
 `2`.
 
-## `matrix validate -config <path> -doc <path> [-requirements <path>]`
+## `tracedoc validate -config <path> -doc <path> [-requirements <path>]`
 
 Strictly decodes the configuration and the document, then validates the
 document snapshot against its schema and the configured policy.
@@ -47,7 +47,7 @@ absent, the command fails with exit `2` rather than silently skipping the
 check. For a **requirements** document the flag is not applicable (exit
 `2`).
 
-## `matrix render -config <path> -doc <path> -output <path> [-template <path>] [-check]`
+## `tracedoc render -config <path> -doc <path> -output <path> [-template <path>] [-check]`
 
 Validates as above (without requirement-link resolution — that is
 `validate`'s responsibility), then renders the Markdown companion with the
@@ -63,7 +63,7 @@ document type's default template.
   [config.md](config.md#templates)). The template file is limited to 1 MiB.
   Templates are trusted consumer input: review them like code.
 
-## `matrix compare -config <path> -baseline <path> -candidate <path>`
+## `tracedoc compare -config <path> -baseline <path> -candidate <path>`
 
 Requires both files to declare the same document type (exit `2`
 otherwise), validates both snapshots independently, then checks that the
@@ -92,7 +92,7 @@ this rule through the CLI. The rule is a declared forward-looking contract:
 it takes effect with the first tool release that reads more than one schema
 version (the planned migration mechanism in
 [versioning.md](versioning.md#version-surfaces)). Tracked as
-[matrix-service#4](https://github.com/sofired/matrix-service/issues/4).
+[tracedoc#4](https://github.com/sofired/tracedoc/issues/4).
 
 `compare` evaluates exactly two snapshots. It proves continuity between the
 baseline and the candidate; continuity across history follows only when
@@ -113,7 +113,7 @@ Two consequences for repository configuration:
   would disable the gate exactly when it matters); repair requires an
   administrator to merge the revert or correction past the failing check.
 
-## `matrix version`
+## `tracedoc version`
 
 Prints the tool version plus the CLI contract, per-document schema, and
 configuration schema versions, then exits `0`.

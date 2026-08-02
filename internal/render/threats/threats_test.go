@@ -5,18 +5,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/render"
-	"github.com/sofired/matrix-service/internal/testsupport"
-	threatsdoc "github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/render"
+	"github.com/sofired/tracedoc/internal/testsupport"
+	threatsdoc "github.com/sofired/tracedoc/internal/threats"
 )
 
 func fixtureOptions() render.Options {
 	return render.Options{
 		IssueURLBase:      "https://github.com/example/project/issues/",
 		SourceName:        "threats.json",
-		GeneratorName:     "matrix",
-		RegenerateCommand: "matrix render -config config.json -doc threats.json -output threats.md",
-		CheckCommand:      "matrix render -config config.json -doc threats.json -output threats.md -check",
+		GeneratorName:     "tracedoc",
+		RegenerateCommand: "tracedoc render -config config.json -doc threats.json -output threats.md",
+		CheckCommand:      "tracedoc render -config config.json -doc threats.json -output threats.md -check",
 	}
 }
 

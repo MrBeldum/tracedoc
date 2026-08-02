@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/matrix"
-	"github.com/sofired/matrix-service/internal/policy"
-	"github.com/sofired/matrix-service/internal/testsupport"
-	"github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/matrix"
+	"github.com/sofired/tracedoc/internal/policy"
+	"github.com/sofired/tracedoc/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 func runCommand(t *testing.T, args ...string) (int, string, string) {
@@ -60,7 +60,7 @@ func loadFixtureThreats(t *testing.T) threats.Document {
 
 func TestHelpAndVersion(t *testing.T) {
 	if exitCode, stdout, _ := runCommand(t, "help"); exitCode != 0 ||
-		!strings.Contains(stdout, "Usage: matrix") {
+		!strings.Contains(stdout, "Usage: tracedoc") {
 		t.Fatalf("unexpected help result %d: %s", exitCode, stdout)
 	}
 	if exitCode, stdout, _ := runCommand(t, "version"); exitCode != 0 ||
@@ -74,7 +74,7 @@ func TestHelpAndVersion(t *testing.T) {
 
 func TestUsageErrors(t *testing.T) {
 	if exitCode, _, stderr := runCommand(t); exitCode != 2 ||
-		!strings.Contains(stderr, "Usage: matrix") {
+		!strings.Contains(stderr, "Usage: tracedoc") {
 		t.Fatalf("expected usage on empty invocation, got %d: %s", exitCode, stderr)
 	}
 	if exitCode, _, stderr := runCommand(t, "unknown"); exitCode != 2 ||

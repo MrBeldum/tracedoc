@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/check"
-	"github.com/sofired/matrix-service/internal/matrix"
-	"github.com/sofired/matrix-service/internal/policy"
-	"github.com/sofired/matrix-service/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/check"
+	"github.com/sofired/tracedoc/internal/matrix"
+	"github.com/sofired/tracedoc/internal/policy"
+	"github.com/sofired/tracedoc/internal/testsupport"
 )
 
 func fixturePolicy(t *testing.T) matrix.Policy {
@@ -139,7 +139,7 @@ func TestMatrixValidation(t *testing.T) {
 			},
 		},
 		{
-			name: "malformed matrix version",
+			name: "malformed tracedoc version",
 			want: "expected a semantic version",
 			mutate: func(doc *matrix.Document) {
 				doc.DocumentVersion = "1.0.0-01"

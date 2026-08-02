@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/sofired/matrix-service/internal/render"
-	"github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/render"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 //go:embed default.md.tmpl

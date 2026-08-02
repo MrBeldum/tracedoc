@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/sofired/matrix-service/internal/check"
-	"github.com/sofired/matrix-service/internal/semver"
+	"github.com/sofired/tracedoc/internal/check"
+	"github.com/sofired/tracedoc/internal/semver"
 )
 
 // TransitionRules selects the optional cross-version transition checks the
@@ -114,7 +114,7 @@ func Compare(
 	// validates both documents first, so while exactly one schema version
 	// is readable this rule is a declared forward-looking contract for the
 	// first schema migration. Tracked:
-	// https://github.com/sofired/matrix-service/issues/4
+	// https://github.com/sofired/tracedoc/issues/4
 	if rules.RequireMajorOnSchemaChange &&
 		candidate.SchemaVersion != baseline.SchemaVersion &&
 		semver.CompareMajor(candidateVersion, baselineVersion) <= 0 {

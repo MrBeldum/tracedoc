@@ -20,7 +20,7 @@ Example:
   "risk_pattern": "^R(?:[1-9]|1[0-2])$",
   "workstreams": ["Protocol", "Platform"],
   "issue_url_base": "https://github.com/example/project/issues/",
-  "generator_name": "matrix",
+  "generator_name": "tracedoc",
   "version_transitions": {
     "require_version_increase_on_change": true,
     "require_review_date_advance_on_change": true,
@@ -35,15 +35,15 @@ Example:
     "verification_levels": ["unit", "integration", "adversarial"],
     "render": {
       "source_name": "matrix.json",
-      "regenerate_command": "matrix render -config ... -doc matrix.json -output matrix.md",
-      "check_command": "matrix render -config ... -doc matrix.json -output matrix.md -check"
+      "regenerate_command": "tracedoc render -config ... -doc matrix.json -output matrix.md",
+      "check_command": "tracedoc render -config ... -doc matrix.json -output matrix.md -check"
     }
   },
   "threat_model": {
     "render": {
       "source_name": "threats.json",
-      "regenerate_command": "matrix render -config ... -doc threats.json -output threats.md",
-      "check_command": "matrix render -config ... -doc threats.json -output threats.md -check"
+      "regenerate_command": "tracedoc render -config ... -doc threats.json -output threats.md",
+      "check_command": "tracedoc render -config ... -doc threats.json -output threats.md -check"
     }
   }
 }

@@ -1,3 +1,3 @@
-module github.com/sofired/matrix-service
+module github.com/sofired/tracedoc
 
 go 1.26.0

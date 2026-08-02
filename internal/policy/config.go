@@ -13,12 +13,12 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/sofired/matrix-service/internal/continuity"
-	"github.com/sofired/matrix-service/internal/document"
-	"github.com/sofired/matrix-service/internal/matrix"
-	"github.com/sofired/matrix-service/internal/render"
-	"github.com/sofired/matrix-service/internal/strictjson"
-	"github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/continuity"
+	"github.com/sofired/tracedoc/internal/document"
+	"github.com/sofired/tracedoc/internal/matrix"
+	"github.com/sofired/tracedoc/internal/render"
+	"github.com/sofired/tracedoc/internal/strictjson"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 // ConfigVersion is the configuration schema this release of the tool reads.

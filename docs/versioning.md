@@ -2,7 +2,7 @@
 
 ## Version surfaces
 
-The tool carries five versioned surfaces, reported by `matrix version`:
+The tool carries five versioned surfaces, reported by `tracedoc version`:
 
 | Surface               | Declared in                                          | Compatibility rule                                                   |
 | --------------------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
@@ -32,7 +32,7 @@ promises: minor releases may break, and the changelog records every break.
 ## Release process
 
 1. Update `CHANGELOG.md` and the `toolVersion` constant in
-   `cmd/matrix/main.go` to the release version.
+   `cmd/tracedoc/main.go` to the release version.
 2. CI must be green (formatting, `go vet`, race-enabled tests, tidy and
    dependency-free module checks, fixture self-checks for both document
    types).
@@ -56,8 +56,8 @@ Releases are distributed two ways from the same tag:
   release means publishing a new version, never moving a tag.
 - **Prebuilt binaries, attached to the GitHub release**, for consumers
   without a Go toolchain. Asset names follow
-  `matrix_<version>_<os>_<arch>[.exe]`, and the accompanying
-  `matrix_<version>_SHA256SUMS` file is generated in CI from the same
+  `tracedoc_<version>_<os>_<arch>[.exe]`, and the accompanying
+  `tracedoc_<version>_SHA256SUMS` file is generated in CI from the same
   build.
 
 ## Consumer pinning and verification
@@ -66,7 +66,7 @@ Releases are distributed two ways from the same tag:
 `go.mod` of a dedicated tools module) and let the Go toolchain verify it:
 
 ```sh
-go run github.com/sofired/matrix-service/cmd/matrix@v0.1.0 ...
+go run github.com/sofired/tracedoc/cmd/tracedoc@v0.1.0 ...
 ```
 
 - `go run`/`go install` with an explicit `@vX.Y.Z` resolve through the
@@ -82,10 +82,10 @@ against a checksum recorded in the consuming repository so verification
 does not depend on re-downloading `SHA256SUMS`:
 
 ```sh
-curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_linux_amd64
-curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_SHA256SUMS
-sha256sum --check --ignore-missing matrix_0.1.0_SHA256SUMS
-chmod +x matrix_0.1.0_linux_amd64
+curl -fsSLO https://github.com/sofired/tracedoc/releases/download/v0.1.0/tracedoc_0.1.0_linux_amd64
+curl -fsSLO https://github.com/sofired/tracedoc/releases/download/v0.1.0/tracedoc_0.1.0_SHA256SUMS
+sha256sum --check --ignore-missing tracedoc_0.1.0_SHA256SUMS
+chmod +x tracedoc_0.1.0_linux_amd64
 ```
 
 Either way, the tool must not be vendored into product binaries, archives,
