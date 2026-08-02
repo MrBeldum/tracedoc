@@ -1,4 +1,4 @@
-# matrix-service agent instructions
+# tracedoc agent instructions
 
 ## Scope
 
@@ -40,12 +40,12 @@ Run before committing:
 gofmt -l .
 go vet ./...
 go test -race -count=1 ./...
-go run ./cmd/matrix validate -config testdata/config.json -doc testdata/matrix.json
-go run ./cmd/matrix render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
-go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
-go run ./cmd/matrix validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
-go run ./cmd/matrix render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
-go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
+go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/matrix.json
+go run ./cmd/tracedoc render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
+go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
+go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
+go run ./cmd/tracedoc render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
+go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
 ```
 
 If an intentional rendering change makes a golden check fail, regenerate

@@ -59,4 +59,4 @@ a replacement requirement. Lifting this restriction is a schema-2
 candidate; until then, split or merge obligations without retiring IDs that
 appear in `replacement_ids`. (Withdrawing an obligation outright is fully
 supported: retire it with an empty replacement list and a rationale.)
-Tracked as [matrix-service#3](https://github.com/sofired/matrix-service/issues/3).
+Tracked as [tracedoc#3](https://github.com/sofired/tracedoc/issues/3).

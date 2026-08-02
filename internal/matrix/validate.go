@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/sofired/matrix-service/internal/check"
-	"github.com/sofired/matrix-service/internal/document"
-	"github.com/sofired/matrix-service/internal/semver"
+	"github.com/sofired/tracedoc/internal/check"
+	"github.com/sofired/tracedoc/internal/document"
+	"github.com/sofired/tracedoc/internal/semver"
 )
 
 // Schema-owned lexical rules. These belong to the versioned document schema,
@@ -324,7 +324,7 @@ func (v *validator) supersession(index int, item Supersession) {
 	// an explicit act.
 	//
 	// Chained supersessions (retiring an ID listed as a replacement) are a
-	// schema-2 candidate: https://github.com/sofired/matrix-service/issues/3
+	// schema-2 candidate: https://github.com/sofired/tracedoc/issues/3
 	if v.StringList(location+".replacement_ids", item.ReplacementIDs, false) {
 		for _, replacementID := range item.ReplacementIDs {
 			if !check.Contains(v.activeIDs, replacementID) {

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/document"
-	"github.com/sofired/matrix-service/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/document"
+	"github.com/sofired/tracedoc/internal/testsupport"
 )
 
 func loadFixtureConfig(t *testing.T) *Config {
@@ -66,7 +66,7 @@ func TestFixtureConfigLoads(t *testing.T) {
 			t.Fatalf("render options for %s: %v", docType, err)
 		}
 		if options.IssueURLBase != "https://github.com/example/project/issues/" ||
-			options.GeneratorName != "matrix" ||
+			options.GeneratorName != "tracedoc" ||
 			options.SourceName == "" {
 			t.Fatalf("unexpected render options for %s: %#v", docType, options)
 		}

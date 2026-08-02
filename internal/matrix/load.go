@@ -1,8 +1,8 @@
 package matrix
 
 import (
-	"github.com/sofired/matrix-service/internal/document"
-	"github.com/sofired/matrix-service/internal/strictjson"
+	"github.com/sofired/tracedoc/internal/document"
+	"github.com/sofired/tracedoc/internal/strictjson"
 )
 
 // Decode strictly decodes a requirements-matrix document from data. It

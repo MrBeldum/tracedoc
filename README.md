@@ -1,6 +1,6 @@
-# matrix-service
+# tracedoc
 
-`matrix` is a CLI that validates, renders, and cross-version-compares
+`tracedoc` is a CLI that validates, renders, and cross-version-compares
 versioned governance documents:
 
 - a **requirements traceability matrix** — normative standards decomposed
@@ -51,13 +51,13 @@ Go module system, which verifies the download against the Go checksum
 database:
 
 ```sh
-go run github.com/sofired/matrix-service/cmd/matrix@v0.1.0 version
+go run github.com/sofired/tracedoc/cmd/tracedoc@v0.1.0 version
 ```
 
 Or install onto your PATH:
 
 ```sh
-go install github.com/sofired/matrix-service/cmd/matrix@v0.1.0
+go install github.com/sofired/tracedoc/cmd/tracedoc@v0.1.0
 ```
 
 **Without a Go toolchain** — for non-Go projects — every tagged release
@@ -66,10 +66,10 @@ publishes static, dependency-free binaries for linux, macOS, and windows
 release workflow:
 
 ```sh
-curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_linux_amd64
-curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_SHA256SUMS
-sha256sum --check --ignore-missing matrix_0.1.0_SHA256SUMS
-chmod +x matrix_0.1.0_linux_amd64 && ./matrix_0.1.0_linux_amd64 version
+curl -fsSLO https://github.com/sofired/tracedoc/releases/download/v0.1.0/tracedoc_0.1.0_linux_amd64
+curl -fsSLO https://github.com/sofired/tracedoc/releases/download/v0.1.0/tracedoc_0.1.0_SHA256SUMS
+sha256sum --check --ignore-missing tracedoc_0.1.0_SHA256SUMS
+chmod +x tracedoc_0.1.0_linux_amd64 && ./tracedoc_0.1.0_linux_amd64 version
 ```
 
 See [docs/versioning.md](docs/versioning.md) for the release, compatibility,
@@ -78,18 +78,18 @@ provenance, and update policy, including offline and supply-chain guidance.
 ## Usage
 
 ```sh
-matrix validate -config matrix.config.json -doc matrix.json
+tracedoc validate -config tracedoc.config.json -doc matrix.json
 
-matrix validate -config matrix.config.json -doc threats.json \
+tracedoc validate -config tracedoc.config.json -doc threats.json \
                 -requirements matrix.json
 
-matrix render   -config matrix.config.json -doc <document.json> \
+tracedoc render   -config tracedoc.config.json -doc <document.json> \
                 -output <document.md> [-template custom.md.tmpl] [-check]
 
-matrix compare  -config matrix.config.json \
+tracedoc compare  -config tracedoc.config.json \
                 -baseline accepted/<document.json> -candidate <document.json>
 
-matrix version
+tracedoc version
 ```
 
 Exit codes: `0` success; `1` validation, comparison, or freshness failure;
@@ -143,6 +143,6 @@ protection catches them.
 
 ## Scope
 
-`matrix` is repository governance tooling. It is not a runtime component
+`tracedoc` is repository governance tooling. It is not a runtime component
 and must not be bundled into product binaries, archives, or containers. It
 has no dependencies outside the Go standard library.

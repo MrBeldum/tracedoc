@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/check"
-	"github.com/sofired/matrix-service/internal/policy"
-	"github.com/sofired/matrix-service/internal/testsupport"
-	"github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/check"
+	"github.com/sofired/tracedoc/internal/policy"
+	"github.com/sofired/tracedoc/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 func fixturePolicy(t *testing.T) threats.Policy {

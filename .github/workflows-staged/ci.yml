@@ -40,7 +40,7 @@ jobs:
           test ! -s /tmp/gofmt.out
       - name: Check dependency-free module
         run: |
-          test "$(go list -m all)" = "github.com/sofired/matrix-service"
+          test "$(go list -m all)" = "github.com/sofired/tracedoc"
           test ! -e go.sum
           go mod tidy -diff
       - name: Vet
@@ -49,9 +49,9 @@ jobs:
         run: go test -race -count=1 ./...
       - name: Self-check fixture documents
         run: |
-          go run ./cmd/matrix validate -config testdata/config.json -doc testdata/matrix.json
-          go run ./cmd/matrix render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
-          go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
-          go run ./cmd/matrix validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
-          go run ./cmd/matrix render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
-          go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
+          go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/matrix.json
+          go run ./cmd/tracedoc render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
+          go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
+          go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
+          go run ./cmd/tracedoc render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
+          go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json

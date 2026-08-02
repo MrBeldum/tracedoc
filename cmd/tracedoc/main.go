@@ -1,4 +1,4 @@
-// Command matrix validates, renders, and cross-version-compares versioned
+// Command tracedoc validates, renders, and cross-version-compares versioned
 // governance documents — a requirements matrix or a system threat model —
 // under a consumer-owned policy configuration. See docs/cli.md for the
 // versioned command contract.
@@ -11,15 +11,15 @@ import (
 	"io"
 	"os"
 
-	"github.com/sofired/matrix-service/internal/check"
-	"github.com/sofired/matrix-service/internal/document"
-	"github.com/sofired/matrix-service/internal/fsio"
-	"github.com/sofired/matrix-service/internal/matrix"
-	"github.com/sofired/matrix-service/internal/policy"
-	"github.com/sofired/matrix-service/internal/render"
-	requirementsrender "github.com/sofired/matrix-service/internal/render/requirements"
-	threatsrender "github.com/sofired/matrix-service/internal/render/threats"
-	"github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/check"
+	"github.com/sofired/tracedoc/internal/document"
+	"github.com/sofired/tracedoc/internal/fsio"
+	"github.com/sofired/tracedoc/internal/matrix"
+	"github.com/sofired/tracedoc/internal/policy"
+	"github.com/sofired/tracedoc/internal/render"
+	requirementsrender "github.com/sofired/tracedoc/internal/render/requirements"
+	threatsrender "github.com/sofired/tracedoc/internal/render/threats"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 // toolVersion is the released tool version. The release process keeps it in
@@ -29,7 +29,7 @@ const toolVersion = "0.1.0"
 // cliContractVersion identifies the command contract in docs/cli.md.
 const cliContractVersion = 1
 
-const usageText = `Usage: matrix <command> [flags]
+const usageText = `Usage: tracedoc <command> [flags]
 
 Commands:
   validate  -config <path> -doc <path> [-requirements <path>]
@@ -64,7 +64,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintf(
 			stdout,
-			"matrix %s (cli-contract %d, requirements-schema %d, threat-model-schema %d, config %d)\n",
+			"tracedoc %s (cli-contract %d, requirements-schema %d, threat-model-schema %d, config %d)\n",
 			toolVersion,
 			cliContractVersion,
 			matrix.SchemaVersion,
@@ -83,7 +83,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 func newFlagSet(command string, stderr io.Writer) *flag.FlagSet {
-	flags := flag.NewFlagSet("matrix "+command, flag.ContinueOnError)
+	flags := flag.NewFlagSet("tracedoc "+command, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	return flags
 }

@@ -3,8 +3,8 @@ package matrix
 import (
 	"reflect"
 
-	"github.com/sofired/matrix-service/internal/check"
-	"github.com/sofired/matrix-service/internal/continuity"
+	"github.com/sofired/tracedoc/internal/check"
+	"github.com/sofired/tracedoc/internal/continuity"
 )
 
 // Compare checks that candidate is a legal successor of the designated

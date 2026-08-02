@@ -12,12 +12,12 @@ the `tools/reqmatrix` utility in the
 ([kivaar#35](https://github.com/sofired/kivaar/issues/35)); the
 threat-model document type was added for
 [kivaar#5](https://github.com/sofired/kivaar/issues/5) (tracked as
-[#2](https://github.com/sofired/matrix-service/issues/2)) before the first
+[#2](https://github.com/sofired/tracedoc/issues/2)) before the first
 tag, so the multi-document design ships from the start.
 
 ### Added
 
-- Document-type-generic `matrix` CLI: every document declares a required
+- Document-type-generic `tracedoc` CLI: every document declares a required
   top-level `document_type`; `validate`, `render`, and `compare` dispatch
   on it, and `compare` requires matching types.
 - Requirements-matrix schema v1: strict lexical decoding (size, depth,

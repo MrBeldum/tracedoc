@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/check"
+	"github.com/sofired/tracedoc/internal/check"
 )
 
 func TestRequiredString(t *testing.T) {

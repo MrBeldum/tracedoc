@@ -35,7 +35,7 @@ jobs:
           test ! -s /tmp/gofmt.out
       - name: Check dependency-free module
         run: |
-          test "$(go list -m all)" = "github.com/sofired/matrix-service"
+          test "$(go list -m all)" = "github.com/sofired/tracedoc"
           test ! -e go.sum
           go mod tidy -diff
       - name: Vet
@@ -46,10 +46,10 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          reported="$(go run ./cmd/matrix version)"
+          reported="$(go run ./cmd/tracedoc version)"
           echo "$reported"
           case "$reported" in
-            "matrix ${TAG#v} ("*) ;;
+            "tracedoc ${TAG#v} ("*) ;;
             *)
               echo "error: embedded toolVersion does not match tag $TAG" >&2
               exit 1
@@ -57,12 +57,12 @@ jobs:
           esac
       - name: Self-check fixture documents
         run: |
-          go run ./cmd/matrix validate -config testdata/config.json -doc testdata/matrix.json
-          go run ./cmd/matrix render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
-          go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
-          go run ./cmd/matrix validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
-          go run ./cmd/matrix render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
-          go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
+          go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/matrix.json
+          go run ./cmd/tracedoc render -config testdata/config.json -doc testdata/matrix.json -output testdata/matrix.md -check
+          go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json
+          go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
+          go run ./cmd/tracedoc render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
+          go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
 
   publish-binaries:
     needs: verify-tag
@@ -95,20 +95,20 @@ jobs:
           for platform in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             os="${platform%/*}"
             arch="${platform#*/}"
-            bin="matrix_${TAG#v}_${os}_${arch}"
+            bin="tracedoc_${TAG#v}_${os}_${arch}"
             if [ "$os" = "windows" ]; then
               bin="$bin.exe"
             fi
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "dist/$bin" ./cmd/matrix
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "dist/$bin" ./cmd/tracedoc
           done
-          (cd dist && sha256sum -- * > "matrix_${TAG#v}_SHA256SUMS")
-          cat "dist/matrix_${TAG#v}_SHA256SUMS"
+          (cd dist && sha256sum -- * > "tracedoc_${TAG#v}_SHA256SUMS")
+          cat "dist/tracedoc_${TAG#v}_SHA256SUMS"
       - name: Smoke-test the host binary
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          "./dist/matrix_${TAG#v}_linux_amd64" version
-          "./dist/matrix_${TAG#v}_linux_amd64" validate -config testdata/config.json -doc testdata/matrix.json
+          "./dist/tracedoc_${TAG#v}_linux_amd64" version
+          "./dist/tracedoc_${TAG#v}_linux_amd64" validate -config testdata/config.json -doc testdata/matrix.json
       - name: Create draft release with binaries and checksums
         env:
           GH_TOKEN: ${{ github.token }}

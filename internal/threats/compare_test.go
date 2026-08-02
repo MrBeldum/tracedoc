@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/continuity"
-	"github.com/sofired/matrix-service/internal/testsupport"
-	"github.com/sofired/matrix-service/internal/threats"
+	"github.com/sofired/tracedoc/internal/continuity"
+	"github.com/sofired/tracedoc/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 func allRules() continuity.TransitionRules {

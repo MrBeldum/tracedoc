@@ -11,9 +11,9 @@ func testOptions() Options {
 	return Options{
 		IssueURLBase:      "https://github.com/example/project/issues/",
 		SourceName:        "matrix.json",
-		GeneratorName:     "matrix",
-		RegenerateCommand: "matrix render",
-		CheckCommand:      "matrix render -check",
+		GeneratorName:     "tracedoc",
+		RegenerateCommand: "tracedoc render",
+		CheckCommand:      "tracedoc render -check",
 	}
 }
 

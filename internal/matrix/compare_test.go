@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sofired/matrix-service/internal/continuity"
-	"github.com/sofired/matrix-service/internal/matrix"
-	"github.com/sofired/matrix-service/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/continuity"
+	"github.com/sofired/tracedoc/internal/matrix"
+	"github.com/sofired/tracedoc/internal/testsupport"
 )
 
 func loadCompareFixture(t *testing.T) matrix.Document {
