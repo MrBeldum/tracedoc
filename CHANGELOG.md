@@ -54,3 +54,7 @@ tag, so the multi-document design ships from the start.
   [docs/config.md](docs/config.md), and the release and update policy in
   [docs/versioning.md](docs/versioning.md), including tag-triggered
   release verification.
+- Binary distribution for non-Go consumers: the release workflow
+  cross-compiles static binaries (linux, macOS, windows; amd64 and arm64)
+  from the verified tag, generates a `SHA256SUMS` file, and attaches both
+  to a draft GitHub release.

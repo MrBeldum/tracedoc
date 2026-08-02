@@ -36,25 +36,34 @@ promises: minor releases may break, and the changelog records every break.
 2. CI must be green (formatting, `go vet`, race-enabled tests, tidy and
    dependency-free module checks, fixture self-checks for both document
    types).
-3. Tag the release commit `vX.Y.Z`. The tag push triggers the
-   release-verification workflow, which re-runs the full verification suite
-   against the tagged commit and fails if the embedded `toolVersion` does
-   not match the tag.
-4. After the release-verification workflow succeeds, create a GitHub
-   release pointing at the tag with the changelog entry. A tag whose
-   verification failed must never be announced or consumed; publish a
-   higher corrected version instead (tags are immutable once pushed).
+3. Tag the release commit `vX.Y.Z`. The tag push triggers the release
+   workflow: a verification job re-runs the full suite against the tagged
+   commit and fails if the embedded `toolVersion` does not match the tag,
+   and a publish job then cross-compiles static binaries (`CGO_ENABLED=0`,
+   `-trimpath`) for linux, macOS, and windows on amd64 and arm64, writes a
+   `SHA256SUMS` file, and creates a **draft** GitHub release carrying
+   them.
+4. Review the draft, replace its notes with the changelog entry, and
+   publish it. A tag whose verification failed must never be published or
+   consumed; publish a higher corrected version instead (tags are
+   immutable once pushed).
 
-Releases are source releases distributed through the Go module ecosystem;
-no binaries are published. The Go module checksum database
-(`sum.golang.org`) records the hash of every published version, making
-releases tamper-evident and immutable: retracting a bad release means
-publishing a new version, never moving a tag.
+Releases are distributed two ways from the same tag:
+
+- **Source, through the Go module ecosystem.** The Go module checksum
+  database (`sum.golang.org`) records the hash of every published version,
+  making source releases tamper-evident and immutable: retracting a bad
+  release means publishing a new version, never moving a tag.
+- **Prebuilt binaries, attached to the GitHub release**, for consumers
+  without a Go toolchain. Asset names follow
+  `matrix_<version>_<os>_<arch>[.exe]`, and the accompanying
+  `matrix_<version>_SHA256SUMS` file is generated in CI from the same
+  build.
 
 ## Consumer pinning and verification
 
-Pin an exact version in the invocation (or in a `go.mod` of a dedicated
-tools module) and let the Go toolchain verify it:
+**Go-toolchain consumers** pin an exact version in the invocation (or in a
+`go.mod` of a dedicated tools module) and let the Go toolchain verify it:
 
 ```sh
 go run github.com/sofired/matrix-service/cmd/matrix@v0.1.0 ...
@@ -66,8 +75,21 @@ go run github.com/sofired/matrix-service/cmd/matrix@v0.1.0 ...
 - For a stronger, repository-recorded pin, add the module to a dedicated
   tools `go.mod`; the accompanying `go.sum` then records the expected hash
   in the consuming repository itself.
-- The tool must not be vendored into product binaries, archives, or
-  containers; it is repository tooling only.
+
+**Non-Go consumers** pin a release tag, download the platform binary from
+the GitHub release, and verify it against the released checksums — ideally
+against a checksum recorded in the consuming repository so verification
+does not depend on re-downloading `SHA256SUMS`:
+
+```sh
+curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_linux_amd64
+curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_SHA256SUMS
+sha256sum --check --ignore-missing matrix_0.1.0_SHA256SUMS
+chmod +x matrix_0.1.0_linux_amd64
+```
+
+Either way, the tool must not be vendored into product binaries, archives,
+or containers; it is repository tooling only.
 
 ## Update policy
 

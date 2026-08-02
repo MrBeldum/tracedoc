@@ -42,23 +42,32 @@ can serve any project without embedding its policy.
 
 ## Install
 
-Pin an exact release and run it through the Go module system, which verifies
-the download against the Go checksum database:
+**With a Go toolchain** (Go 1.26+; toolchain auto-download normally
+resolves this automatically), pin an exact release and run it through the
+Go module system, which verifies the download against the Go checksum
+database:
 
 ```sh
 go run github.com/sofired/matrix-service/cmd/matrix@v0.1.0 version
 ```
 
-Or install a verified binary onto your PATH:
+Or install onto your PATH:
 
 ```sh
 go install github.com/sofired/matrix-service/cmd/matrix@v0.1.0
 ```
 
-Building or running the tool requires Go 1.26 or later (`go.mod` declares
-`go 1.26.0`; with toolchain auto-download enabled, any recent Go
-installation resolves this automatically — pinned-toolchain or offline
-environments must provide it themselves).
+**Without a Go toolchain** — for non-Go projects — every tagged release
+publishes static, dependency-free binaries for linux, macOS, and windows
+(amd64 and arm64) with a `SHA256SUMS` file, built by the tag-verified
+release workflow:
+
+```sh
+curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_linux_amd64
+curl -fsSLO https://github.com/sofired/matrix-service/releases/download/v0.1.0/matrix_0.1.0_SHA256SUMS
+sha256sum --check --ignore-missing matrix_0.1.0_SHA256SUMS
+chmod +x matrix_0.1.0_linux_amd64 && ./matrix_0.1.0_linux_amd64 version
+```
 
 See [docs/versioning.md](docs/versioning.md) for the release, compatibility,
 provenance, and update policy, including offline and supply-chain guidance.

@@ -1,4 +1,4 @@
-name: Release verification
+name: Release
 
 on:
   push:
@@ -63,3 +63,60 @@ jobs:
           go run ./cmd/matrix validate -config testdata/config.json -doc testdata/threats.json -requirements testdata/matrix.json
           go run ./cmd/matrix render -config testdata/config.json -doc testdata/threats.json -output testdata/threats.md -check
           go run ./cmd/matrix compare -config testdata/config.json -baseline testdata/threats.json -candidate testdata/threats.json
+
+  publish-binaries:
+    needs: verify-tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      CGO_ENABLED: "0"
+      GOPROXY: "off"
+      GOSUMDB: "off"
+      GOTOOLCHAIN: local
+      GOWORK: "off"
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Build release binaries
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          for platform in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os="${platform%/*}"
+            arch="${platform#*/}"
+            bin="matrix_${TAG#v}_${os}_${arch}"
+            if [ "$os" = "windows" ]; then
+              bin="$bin.exe"
+            fi
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "dist/$bin" ./cmd/matrix
+          done
+          (cd dist && sha256sum -- * > "matrix_${TAG#v}_SHA256SUMS")
+          cat "dist/matrix_${TAG#v}_SHA256SUMS"
+      - name: Smoke-test the host binary
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          "./dist/matrix_${TAG#v}_linux_amd64" version
+          "./dist/matrix_${TAG#v}_linux_amd64" validate -config testdata/config.json -doc testdata/matrix.json
+      - name: Create draft release with binaries and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --draft \
+            --verify-tag \
+            --title "$TAG" \
+            --notes "Draft created by the release workflow. Replace these notes with the CHANGELOG entry for $TAG, then publish." \
+            dist/*
