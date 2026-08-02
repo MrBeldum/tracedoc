@@ -29,6 +29,29 @@ escapes content so it cannot introduce Markdown structure or raw HTML.
 Formatted content requires a future, explicitly named field and a separate
 validation contract.
 
+### Invisible code points
+
+Two layers keep code points that survive Markdown escaping from changing
+how output is interpreted or displayed:
+
+- **Validation** rejects control characters (Unicode category Cc, which
+  includes NEL) and the line and paragraph separators (Zl/Zp) in every
+  validated string — scalar fields and every free-form list item alike.
+  The diagnostic reads `contains a control or line-separator character`.
+- **Rendering** additionally neutralizes those code points *and* the
+  bidirectional embedding, override, and isolate controls
+  (U+202A–U+202E, U+2066–U+2069) in every emission context: prose, table
+  cells, inline code, link labels, HTML text, and link destinations
+  (percent-encoded there rather than dropped). This is defense in depth
+  for the validated classes and the primary defense for bidirectional
+  controls.
+
+Bidirectional controls are deliberately **not** rejected at validation:
+right-to-left content is legitimate in prose, so the boundary is drawn at
+rendering, where reordering would mislead a reader of the generated
+document. Other format-category (Cf) code points, such as zero-width
+joiners, are permitted in both layers.
+
 ## Shared structural conventions
 
 Both schemas share these members and semantics:

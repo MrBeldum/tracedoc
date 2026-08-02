@@ -64,8 +64,10 @@ func (c *Checker) RequiredString(location, value string) bool {
 // expression): a value that fails either check is rejected here, before
 // that further check runs, so one malformed value cannot cascade into
 // multiple diagnostics. Consumer patterns are policy, not a lexical safety
-// net — this check is what keeps unbounded or control-bearing values out
-// of rendered output regardless of how permissive a pattern is.
+// net: this check is what keeps unbounded or control-bearing scalar values
+// out of rendered output regardless of how permissive a pattern is. List
+// items get the same guarantee through StringList, and the renderer's
+// escaping functions neutralize the same code points in free-text prose.
 func (c *Checker) BoundedControlFreeString(location, value string) bool {
 	if !c.RequiredString(location, value) {
 		return false
@@ -82,14 +84,17 @@ func (c *Checker) ControlFreeString(location, value string) bool {
 	if strings.IndexFunc(value, func(r rune) bool {
 		return unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
 	}) >= 0 {
-		c.Add(location, "contains a control character")
+		c.Add(location, "contains a control or line-separator character")
 		return false
 	}
 	return true
 }
 
-// StringList enforces a present array of bounded, unique strings;
-// requireItems additionally rejects an empty array.
+// StringList enforces a present array of bounded, unique, control-free
+// strings; requireItems additionally rejects an empty array. Every list
+// item receives the same lexical guarantee as a scalar field validated
+// with BoundedControlFreeString, so no free-form identifier list can
+// carry a control or line-separator character into rendered output.
 func (c *Checker) StringList(location string, values []string, requireItems bool) bool {
 	if values == nil || requireItems && len(values) == 0 {
 		expectation := "expected an array"
@@ -104,6 +109,8 @@ func (c *Checker) StringList(location string, values []string, requireItems bool
 	for index, value := range values {
 		itemLocation := fmt.Sprintf("%s[%d]", location, index)
 		if !c.RequiredString(itemLocation, value) {
+			valid = false
+		} else if !c.ControlFreeString(itemLocation, value) {
 			valid = false
 		}
 		if _, duplicate := seen[value]; duplicate {

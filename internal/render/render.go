@@ -113,7 +113,7 @@ func TableText(value string) string {
 // HTMLText escapes value for plain-text emission inside raw HTML.
 func HTMLText(value string) string {
 	value = html.EscapeString(value)
-	return strings.NewReplacer(
+	return neutralizeInvisible(strings.NewReplacer(
 		`\`, "&#92;",
 		"`", "&#96;",
 		`*`, "&#42;",
@@ -125,7 +125,7 @@ func HTMLText(value string) string {
 		"\r\n", " ",
 		"\r", " ",
 		"\n", " ",
-	).Replace(value)
+	).Replace(value))
 }
 
 // InlineValues renders values as a comma-separated inline-code list.
@@ -142,12 +142,47 @@ func InlineValues(values []string) string {
 
 // CodeText neutralizes table and line-break structure inside code spans.
 func CodeText(value string) string {
-	return strings.NewReplacer(
+	return neutralizeInvisible(strings.NewReplacer(
 		`|`, `\|`,
 		"\r\n", " ",
 		"\r", " ",
 		"\n", " ",
-	).Replace(value)
+	).Replace(value))
+}
+
+// neutralizeInvisible drops the code points that survive Markdown escaping
+// yet still alter how rendered output is interpreted or displayed: control
+// runes (Cc), the Unicode line and paragraph separators (Zl/Zp), and the
+// bidirectional embedding, override, and isolate controls that can reorder
+// surrounding text (the "Trojan Source" class). Validation already rejects
+// Cc/Zl/Zp in every document field, so this is defense in depth for that
+// class and the primary defense for bidirectional controls, which
+// validation deliberately allows so that right-to-left content stays
+// expressible in prose.
+func neutralizeInvisible(value string) string {
+	if !strings.ContainsFunc(value, isInvisible) {
+		return value
+	}
+	var cleaned strings.Builder
+	cleaned.Grow(len(value))
+	for _, r := range value {
+		if isInvisible(r) {
+			continue
+		}
+		cleaned.WriteRune(r)
+	}
+	return cleaned.String()
+}
+
+func isInvisible(r rune) bool {
+	switch {
+	case unicode.IsControl(r), unicode.Is(unicode.Zl, r), unicode.Is(unicode.Zp, r):
+		return true
+	case r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069:
+		return true
+	default:
+		return false
+	}
 }
 
 // InlineCode wraps value in a backtick fence longer than any run it contains.
@@ -184,11 +219,11 @@ func markdownText(value, lineBreak string) string {
 		`~`, `\~`,
 	).Replace(value)
 	value = html.EscapeString(value)
-	return strings.NewReplacer(
+	return neutralizeInvisible(strings.NewReplacer(
 		"\r\n", lineBreak,
 		"\r", lineBreak,
 		"\n", lineBreak,
-	).Replace(value)
+	).Replace(value))
 }
 
 // LinkDestination escapes value for a Markdown link destination. Angle
@@ -196,20 +231,22 @@ func markdownText(value, lineBreak string) string {
 // line structure are percent-encoded before the <...> wrapper decision, so
 // none of them can inject a raw line break into the rendered document; only
 // a space or a parenthesis still forces the wrapper. Every control rune
-// (Unicode category Cc) and the Unicode line and paragraph separators
-// (Zl/Zp) are encoded byte-by-byte, so the function is safe by
+// (Unicode category Cc), the Unicode line and paragraph separators
+// (Zl/Zp), and the bidirectional overrides and isolates are encoded
+// byte-by-byte, so the function is safe by
 // construction even for a caller that skipped upstream validation —
 // upstream bounds (check.BoundedControlFreeString, lexicalURI) remain the
 // primary defense; this is the belt to their braces.
 func LinkDestination(value string) string {
 	var escaped strings.Builder
+	escaped.Grow(len(value))
 	for _, r := range value {
 		switch {
 		case r == '<':
 			escaped.WriteString("%3C")
 		case r == '>':
 			escaped.WriteString("%3E")
-		case unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r):
+		case isInvisible(r):
 			for _, encoded := range []byte(string(r)) {
 				fmt.Fprintf(&escaped, "%%%02X", encoded)
 			}

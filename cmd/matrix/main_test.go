@@ -552,7 +552,8 @@ func TestValidateDecodeFailures(t *testing.T) {
 		t, "validate", "-config", config,
 		"-doc", malformedThreats, "-requirements", matrixPath,
 	)
-	if exitCode != 2 || !strings.Contains(stderr, "cannot decode document") {
+	if exitCode != 2 || !strings.Contains(stderr, "cannot decode document") ||
+		!strings.Contains(stderr, "threats") {
 		t.Fatalf("expected threat-model decode failure, got %d: %s", exitCode, stderr)
 	}
 
@@ -562,7 +563,8 @@ func TestValidateDecodeFailures(t *testing.T) {
 	exitCode, _, stderr = runCommand(
 		t, "validate", "-config", config, "-doc", malformedMatrix,
 	)
-	if exitCode != 2 || !strings.Contains(stderr, "cannot decode document") {
+	if exitCode != 2 || !strings.Contains(stderr, "cannot decode document") ||
+		!strings.Contains(stderr, "standards") {
 		t.Fatalf("expected requirements decode failure, got %d: %s", exitCode, stderr)
 	}
 }

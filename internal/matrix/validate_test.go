@@ -207,6 +207,27 @@ func TestMatrixValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "opaque citation URI",
+			want: "opaque URIs, user information, ports, and queries are not allowed",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Citations[0].URI = "mailto:evil@example.org"
+			},
+		},
+		{
+			name: "unparseable citation URI",
+			want: "invalid URI",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Citations[0].URI = "https://standards.example.org/%zz"
+			},
+		},
+		{
+			name: "citation URI with an encoded control character",
+			want: "contains encoded whitespace or a control character",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Citations[0].URI = "https://standards.example.org/a%0Ab"
+			},
+		},
+		{
 			name: "unknown citation standard with malformed URI keeps lexical check",
 			want: "contains whitespace, a control character, or a backslash",
 			mutate: func(doc *matrix.Document) {
@@ -437,7 +458,7 @@ func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
 		doc.Requirements[0].Owner.Issue = &issue
 
 		errs := matrix.Validate(doc, permissive)
-		if !strings.Contains(errs.Error(), "contains a control character") {
+		if !strings.Contains(errs.Error(), "contains a control or line-separator character") {
 			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
 		}
 	})
@@ -453,7 +474,7 @@ func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
 		doc.Requirements[0].Owner.Issue = &issue
 
 		errs := matrix.Validate(doc, permissive)
-		if !strings.Contains(errs.Error(), "contains a control character") {
+		if !strings.Contains(errs.Error(), "contains a control or line-separator character") {
 			t.Fatalf("expected line-separator rejection, got:\n%s", errs)
 		}
 	})
@@ -470,7 +491,7 @@ func TestRiskEntriesAreControlFreeUnderPermissivePattern(t *testing.T) {
 	doc.Requirements[0].Traceability.Risks = []string{"R1\x1b[31mred"}
 
 	errs := matrix.Validate(doc, permissive)
-	if !strings.Contains(errs.Error(), "contains a control character") {
+	if !strings.Contains(errs.Error(), "contains a control or line-separator character") {
 		t.Fatalf("expected control-character rejection for a risk entry, got:\n%s", errs)
 	}
 }

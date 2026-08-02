@@ -144,4 +144,6 @@ schema constrains their character sets to values that cannot carry Markdown
 or HTML structure; anything else emitted raw is an injection risk. Section
 layout and precomputed-section membership may change in minor releases;
 pin the tool version to keep byte-identical output, and re-verify consumer
-templates when updating.
+templates when updating. Every escaping function also neutralizes
+invisible code points; see
+[the shared lexical contract](schema.md#invisible-code-points).

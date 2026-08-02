@@ -299,9 +299,10 @@ func (v *validator) traceability(location string, item *Traceability) {
 	v.StringList(location+".threats", item.Threats, false)
 	if v.StringList(location+".risks", item.Risks, false) {
 		for index, risk := range item.Risks {
+			// StringList already rejected control-bearing items, so a value
+			// reaching here only needs the consumer pattern applied.
 			itemLocation := fmt.Sprintf("%s.risks[%d]", location, index)
-			if v.ControlFreeString(itemLocation, risk) &&
-				(v.policy.Risk == nil || !v.policy.Risk.MatchString(risk)) {
+			if v.policy.Risk == nil || !v.policy.Risk.MatchString(risk) {
 				v.Addf(itemLocation, "invalid risk %q", risk)
 			}
 		}

@@ -93,7 +93,8 @@ func compareIdentifier(left, right string) int {
 // components) and the semver prerelease grammar (for numeric identifiers)
 // forbid leading zeros, so ordering by length and then lexically equals
 // numeric ordering at any magnitude — including magnitudes too large for
-// strconv.Atoi, which would otherwise silently overflow to 0.
+// strconv.Atoi, which clamps them all to the same math.MaxInt64 and would
+// otherwise make two distinct oversized components compare as equal.
 func compareNumericComponent(left, right string) int {
 	if len(left) != len(right) {
 		return sign(len(left) - len(right))

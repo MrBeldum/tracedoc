@@ -423,7 +423,7 @@ func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
 		doc.Threats[0].Owner.Issue = &issue
 
 		errs := threats.Validate(doc, permissive, fixtureIndex())
-		if !strings.Contains(errs.Error(), "contains a control character") {
+		if !strings.Contains(errs.Error(), "contains a control or line-separator character") {
 			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
 		}
 	})
@@ -505,7 +505,7 @@ func TestRiskEntriesAreControlFreeUnderPermissivePattern(t *testing.T) {
 	threatByID(t, &doc, "THRT-002").Mitigations.Risks = []string{"R12\x1b[31mred"}
 
 	errs := threats.Validate(doc, permissive, fixtureIndex())
-	if !strings.Contains(errs.Error(), "contains a control character") {
+	if !strings.Contains(errs.Error(), "contains a control or line-separator character") {
 		t.Fatalf("expected control-character rejection for a risk entry, got:\n%s", errs)
 	}
 }

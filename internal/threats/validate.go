@@ -262,9 +262,10 @@ func (v *validator) mitigations(location string, item Threat) {
 	}
 	if v.StringList(mitigationsLocation+".risks", mitigations.Risks, false) {
 		for index, risk := range mitigations.Risks {
+			// StringList already rejected control-bearing items, so a value
+			// reaching here only needs the consumer pattern applied.
 			itemLocation := fmt.Sprintf("%s.risks[%d]", mitigationsLocation, index)
-			if v.ControlFreeString(itemLocation, risk) &&
-				(v.policy.Risk == nil || !v.policy.Risk.MatchString(risk)) {
+			if v.policy.Risk == nil || !v.policy.Risk.MatchString(risk) {
 				v.Addf(itemLocation, "invalid risk %q", risk)
 			}
 		}

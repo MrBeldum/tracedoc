@@ -69,7 +69,7 @@ func TestBoundedControlFreeString(t *testing.T) {
 		if c.BoundedControlFreeString("field", "line one\nline two") {
 			t.Fatal("expected control character to fail")
 		}
-		if len(c.Errs) != 1 || c.Errs[0] != "field: contains a control character" {
+		if len(c.Errs) != 1 || c.Errs[0] != "field: contains a control or line-separator character" {
 			t.Fatalf("unexpected errors: %v", c.Errs)
 		}
 	})
@@ -263,7 +263,7 @@ func TestControlFreeString(t *testing.T) {
 		if c.ControlFreeString("loc", value) {
 			t.Errorf("%s accepted", name)
 		}
-		if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control character" {
+		if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control or line-separator character" {
 			t.Errorf("%s: unexpected errors %v", name, c.Errs)
 		}
 	}
@@ -274,7 +274,26 @@ func TestBoundedControlFreeStringRejectsLineSeparators(t *testing.T) {
 	if c.BoundedControlFreeString("loc", "a\u2028b") {
 		t.Fatal("line separator accepted")
 	}
-	if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control character" {
+	if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control or line-separator character" {
 		t.Fatalf("unexpected errors %v", c.Errs)
+	}
+}
+
+// TestStringListRejectsControlBearingItems pins the generalized invariant:
+// every free-form list item gets the same lexical guarantee as a scalar
+// field, so no identifier list can carry a control rune into output.
+func TestStringListRejectsControlBearingItems(t *testing.T) {
+	for name, value := range map[string]string{
+		"escape":         "ADR-001\x1bFAKE",
+		"line separator": "ADR-001\u2028x",
+	} {
+		var c check.Checker
+		if c.StringList("adrs", []string{value}, false) {
+			t.Errorf("%s: control-bearing item accepted", name)
+		}
+		if len(c.Errs) != 1 ||
+			!strings.Contains(c.Errs[0], "contains a control or line-separator character") {
+			t.Errorf("%s: unexpected errors %v", name, c.Errs)
+		}
 	}
 }

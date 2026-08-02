@@ -40,10 +40,10 @@ requirement, and every standard named in the configuration's
 | `interpretation`          | string | non-empty                                                          |
 | `applicability`           | string | `applicable`, `deferred`, or `not-applicable`                      |
 | `applicability_rationale` | string | required when not `applicable`; optional otherwise                 |
-| `owner`                   | object | `milestone` and optional nullable `issue` are first checked non-blank, bounded, and free of control and line-separator characters, then matched against the configured patterns; `workstream` (configured vocabulary) |
+| `owner`                   | object | `milestone` and optional nullable `issue` are first checked non-blank, bounded, and free of [invisible code points](schema.md#invisible-code-points), then matched against the configured patterns; `workstream` (configured vocabulary) |
 | `planned_verification`    | object | `levels`: non-empty, values from the configured vocabulary; `evidence`: non-empty list of identifiers |
 | `evidence_status`         | string | `planned`, `in-progress`, `verified`, `deferred`, or `not-applicable` |
-| `traceability`            | object | `adrs`, `threats`, `risks`: required arrays, may be empty; `risks` values are control- and line-separator-free and match the configured pattern |
+| `traceability`            | object | `adrs`, `threats`, `risks`: required arrays, may be empty; `risks` values are free of [invisible code points](schema.md#invisible-code-points) and match the configured pattern |
 
 Applicability and evidence status are coupled: a `deferred` requirement must
 have `deferred` evidence status, a `not-applicable` requirement must have

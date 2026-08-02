@@ -134,3 +134,46 @@ func TestLinkDestinationEncodesSeparatorsByConstruction(t *testing.T) {
 		}
 	}
 }
+
+// TestEscapersNeutralizeInvisibleRunes pins the by-construction defense
+// shared by every escaping function: control runes, line/paragraph
+// separators, and bidirectional overrides never survive into rendered
+// output, whichever context a document field is emitted in.
+func TestEscapersNeutralizeInvisibleRunes(t *testing.T) {
+	hazards := map[string]string{
+		"escape":         "ADR-001\x1bFAKE",
+		"nul":            "ADR-001\x00hidden",
+		"line separator": "ADR-001\u2028injected",
+		"nel":            "ADR-001\u0085injected",
+		"rtl override":   "ADR-001\u202Ereversed",
+		"isolate":        "ADR-001\u2066isolated",
+	}
+	for name, value := range hazards {
+		for fnName, fn := range map[string]func(string) string{
+			"CodeText":  CodeText,
+			"ProseText": ProseText,
+			"TableText": TableText,
+			"LinkLabel": LinkLabel,
+			"HTMLText":  HTMLText,
+		} {
+			got := fn(value)
+			for _, bad := range []rune{'\x1b', '\x00', '\u2028', '\u0085', '\u202E', '\u2066'} {
+				if strings.ContainsRune(got, bad) {
+					t.Errorf("%s(%s): %q retained %U", fnName, name, got, bad)
+				}
+			}
+			if !strings.Contains(got, "ADR-001") {
+				t.Errorf("%s(%s): visible text lost from %q", fnName, name, got)
+			}
+		}
+		if encoded := LinkDestination(value); strings.ContainsAny(encoded, "\x1b\x00") ||
+			strings.ContainsRune(encoded, '\u2028') || strings.ContainsRune(encoded, '\u202E') {
+			t.Errorf("LinkDestination(%s) retained an invisible rune: %q", name, encoded)
+		}
+	}
+
+	// InlineValues is the path every identifier list renders through.
+	if got := InlineValues([]string{"ADR-001\x1b[31mFAKE"}); strings.ContainsRune(got, '\x1b') {
+		t.Errorf("InlineValues retained an escape byte: %q", got)
+	}
+}
