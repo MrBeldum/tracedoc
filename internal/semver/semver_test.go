@@ -46,23 +46,30 @@ func TestPrecedence(t *testing.T) {
 }
 
 // TestHugeComponentsDoNotOverflow is the regression test for the
-// strconv.Atoi overflow bug: a pattern-valid but arbitrarily large major,
-// minor, or patch value used to silently become 0 on overflow, so it
-// compared as lower than a small version instead of higher.
+// strconv.Atoi overflow bug. Atoi clamps an out-of-range value to
+// math.MaxInt64 (it never becomes 0), so a single huge-versus-small
+// comparison was always accidentally correct under the old int-based
+// implementation — the real defect was that two DIFFERENT out-of-range
+// magnitudes both clamped to the same MaxInt64 and incorrectly compared
+// as equal. That distinct-huge-magnitudes case is what pins the
+// string-based comparison.
 func TestHugeComponentsDoNotOverflow(t *testing.T) {
-	huge := Parse("99999999999999999999.0.0")
-	small := Parse("2.0.0")
-	if Compare(huge, small) <= 0 {
+	larger := Parse("99999999999999999999.0.0")
+	smaller := Parse("88888888888888888888.0.0")
+	if got := Compare(larger, smaller); got != 1 {
 		t.Fatalf(
-			"expected huge major version to sort above %q, got Compare = %d",
-			"2.0.0", Compare(huge, small),
+			"expected distinct huge majors to order correctly, got Compare = %d",
+			got,
 		)
 	}
-	if Compare(small, huge) >= 0 {
-		t.Fatalf(
-			"expected %q to sort below huge major version, got Compare = %d",
-			"2.0.0", Compare(small, huge),
-		)
+	if got := Compare(smaller, larger); got != -1 {
+		t.Fatalf("expected reversed huge majors to compare -1, got %d", got)
+	}
+
+	huge := Parse("99999999999999999999.0.0")
+	small := Parse("2.0.0")
+	if Compare(huge, small) <= 0 || Compare(small, huge) >= 0 {
+		t.Fatal("expected huge major version to sort above a small one")
 	}
 }
 
@@ -87,5 +94,23 @@ func TestCompareMajor(t *testing.T) {
 	}
 	if got := CompareMajor(Parse("2.0.0"), Parse("2.9.9")); got != 0 {
 		t.Fatalf("expected equal majors to compare 0 regardless of minor/patch, got %d", got)
+	}
+
+	// The length-then-lexical trap: a naive lexical comparison would order
+	// major "9" above major "10". This is the case that catches a
+	// comparison implemented without the length step.
+	if got := CompareMajor(Parse("9.0.0"), Parse("10.0.0")); got != -1 {
+		t.Fatalf("expected major 9 < major 10 despite the shorter digit string, got %d", got)
+	}
+	if got := CompareMajor(Parse("10.0.0"), Parse("9.0.0")); got != 1 {
+		t.Fatalf("expected major 10 > major 9, got %d", got)
+	}
+	// Same length, differing values: the lexical step must still decide.
+	if got := CompareMajor(Parse("10.0.0"), Parse("20.0.0")); got != -1 {
+		t.Fatalf("expected major 10 < major 20, got %d", got)
+	}
+	// Distinct huge magnitudes must not conflate (the Atoi-clamp defect).
+	if got := CompareMajor(Parse("99999999999999999999.0.0"), Parse("88888888888888888888.0.0")); got != 1 {
+		t.Fatalf("expected distinct huge majors to order correctly, got %d", got)
 	}
 }

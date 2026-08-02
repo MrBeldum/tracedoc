@@ -181,11 +181,17 @@ func (v *validator) citations(
 			v.Addf(itemLocation+".standard", "unknown standard %q", item.Standard)
 		}
 		v.RequiredString(itemLocation+".clause", item.Clause)
-		// An unknown standard has no URI policy to check the citation URI
-		// against, so skip that check here rather than cascade a second,
-		// uninformative "no URI policy" diagnostic for the same citation.
+		// An unknown standard has no source policy to apply, so the policy
+		// half of the URI check is skipped to avoid cascading a second,
+		// uninformative "no URI policy" diagnostic — but the schema-owned
+		// lexical and injection checks still run, so a malformed URI on the
+		// same citation is reported in the same validation pass.
 		if standardKnown {
 			v.sourceURI(itemLocation+".uri", item.Standard, item.URI)
+		} else if v.RequiredString(itemLocation+".uri", item.URI) {
+			if _, err := lexicalURI(item.URI); err != nil {
+				v.Add(itemLocation+".uri", err.Error())
+			}
 		}
 		key := item.Standard + "\x00" + item.Clause + "\x00" + item.URI
 		if _, duplicate := seen[key]; duplicate {
@@ -226,10 +232,7 @@ func (v *validator) owner(location string, item *Owner) {
 		return
 	}
 	location += ".owner"
-	// The pattern check runs only once the value is confirmed non-blank,
-	// bounded, and control-character-free: a consumer-supplied pattern is
-	// policy, not a lexical safety net, so a permissive pattern must never
-	// let an oversized or control-bearing value through undetected.
+	// Bounds before pattern; see check.BoundedControlFreeString for why.
 	if v.BoundedControlFreeString(location+".milestone", item.Milestone) &&
 		(v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone)) {
 		v.Add(location+".milestone", "invalid milestone")
@@ -296,8 +299,10 @@ func (v *validator) traceability(location string, item *Traceability) {
 	v.StringList(location+".threats", item.Threats, false)
 	if v.StringList(location+".risks", item.Risks, false) {
 		for index, risk := range item.Risks {
-			if v.policy.Risk == nil || !v.policy.Risk.MatchString(risk) {
-				v.Addf(fmt.Sprintf("%s.risks[%d]", location, index), "invalid risk %q", risk)
+			itemLocation := fmt.Sprintf("%s.risks[%d]", location, index)
+			if v.ControlFreeString(itemLocation, risk) &&
+				(v.policy.Risk == nil || !v.policy.Risk.MatchString(risk)) {
+				v.Addf(itemLocation, "invalid risk %q", risk)
 			}
 		}
 	}
@@ -338,26 +343,37 @@ func (v *validator) sourceURI(location, standardKey, value string) {
 	}
 }
 
-func validateSourceURI(policy Policy, standardKey, value string) error {
+// lexicalURI runs the schema-owned URI format and injection checks that
+// apply to every citation and standard URI regardless of which source
+// policy (if any) governs its standard key.
+func lexicalURI(value string) (*url.URL, error) {
 	if strings.TrimSpace(value) != value ||
 		strings.Contains(value, `\`) ||
 		strings.IndexFunc(value, func(r rune) bool {
 			return unicode.IsControl(r) || unicode.IsSpace(r)
 		}) >= 0 {
-		return errors.New("contains whitespace, a control character, or a backslash")
+		return nil, errors.New("contains whitespace, a control character, or a backslash")
 	}
 
 	parsed, err := url.Parse(value)
 	if err != nil {
-		return fmt.Errorf("invalid URI: %w", err)
+		return nil, fmt.Errorf("invalid URI: %w", err)
 	}
 	if parsed.Opaque != "" || parsed.User != nil || parsed.Port() != "" || parsed.RawQuery != "" {
-		return errors.New("opaque URIs, user information, ports, and queries are not allowed")
+		return nil, errors.New("opaque URIs, user information, ports, and queries are not allowed")
 	}
 	if strings.IndexFunc(parsed.Path+parsed.Fragment, func(r rune) bool {
 		return unicode.IsControl(r) || unicode.IsSpace(r)
 	}) >= 0 {
-		return errors.New("contains encoded whitespace or a control character")
+		return nil, errors.New("contains encoded whitespace or a control character")
+	}
+	return parsed, nil
+}
+
+func validateSourceURI(policy Policy, standardKey, value string) error {
+	parsed, err := lexicalURI(value)
+	if err != nil {
+		return err
 	}
 
 	if localPath, ok := policy.LocalSources[standardKey]; ok {

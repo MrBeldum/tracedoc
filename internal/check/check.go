@@ -59,16 +59,29 @@ func (c *Checker) RequiredString(location, value string) bool {
 }
 
 // BoundedControlFreeString enforces RequiredString and additionally rejects
-// control characters, reporting "contains a control character" when they
-// are present. It reports whether value is safe to further validate (for
-// example against a consumer-supplied regular expression): a value that
-// fails either check is rejected here, before that further check runs, so
-// one malformed value cannot cascade into multiple diagnostics.
+// control and line-separator characters. It reports whether value is safe
+// to further validate (for example against a consumer-supplied regular
+// expression): a value that fails either check is rejected here, before
+// that further check runs, so one malformed value cannot cascade into
+// multiple diagnostics. Consumer patterns are policy, not a lexical safety
+// net — this check is what keeps unbounded or control-bearing values out
+// of rendered output regardless of how permissive a pattern is.
 func (c *Checker) BoundedControlFreeString(location, value string) bool {
 	if !c.RequiredString(location, value) {
 		return false
 	}
-	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+	return c.ControlFreeString(location, value)
+}
+
+// ControlFreeString rejects control characters (Unicode category Cc,
+// which includes NEL) and the Unicode line and paragraph separators
+// (categories Zl and Zp) — every code point that any Markdown consumer
+// might treat as a line break. Use it alone when RequiredString has
+// already run (for example on StringList items).
+func (c *Checker) ControlFreeString(location, value string) bool {
+	if strings.IndexFunc(value, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
+	}) >= 0 {
 		c.Add(location, "contains a control character")
 		return false
 	}

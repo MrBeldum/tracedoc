@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/template"
 	"text/template/parse"
+	"unicode"
 )
 
 // MaxTemplateBytes bounds the size of a consumer-supplied template file.
@@ -192,19 +193,33 @@ func markdownText(value, lineBreak string) string {
 
 // LinkDestination escapes value for a Markdown link destination. Angle
 // brackets and the raw control bytes that would otherwise break CommonMark
-// line structure (tab, CR, LF) are percent-encoded before the <...> wrapper
-// decision, so none of them can inject a raw newline into the rendered
-// document; only a space or a parenthesis still forces the wrapper.
+// line structure are percent-encoded before the <...> wrapper decision, so
+// none of them can inject a raw line break into the rendered document; only
+// a space or a parenthesis still forces the wrapper. Every control rune
+// (Unicode category Cc) and the Unicode line and paragraph separators
+// (Zl/Zp) are encoded byte-by-byte, so the function is safe by
+// construction even for a caller that skipped upstream validation —
+// upstream bounds (check.BoundedControlFreeString, lexicalURI) remain the
+// primary defense; this is the belt to their braces.
 func LinkDestination(value string) string {
-	escaped := strings.NewReplacer(
-		"<", "%3C",
-		">", "%3E",
-		"\t", "%09",
-		"\r", "%0D",
-		"\n", "%0A",
-	).Replace(value)
-	if strings.ContainsAny(escaped, " ()") {
-		return "<" + escaped + ">"
+	var escaped strings.Builder
+	for _, r := range value {
+		switch {
+		case r == '<':
+			escaped.WriteString("%3C")
+		case r == '>':
+			escaped.WriteString("%3E")
+		case unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r):
+			for _, encoded := range []byte(string(r)) {
+				fmt.Fprintf(&escaped, "%%%02X", encoded)
+			}
+		default:
+			escaped.WriteRune(r)
+		}
 	}
-	return escaped
+	result := escaped.String()
+	if strings.ContainsAny(result, " ()") {
+		return "<" + result + ">"
+	}
+	return result
 }

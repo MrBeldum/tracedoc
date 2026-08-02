@@ -41,7 +41,7 @@ threat; enumerations do not carry dead entries.
 | `disposition_rationale`  | string | required for `accepted`, `transferred`, and `avoided`; optional otherwise |
 | `affected_assets`        | array  | non-empty, unique, declared asset IDs                            |
 | `trust_boundaries`       | array  | required, may be empty, unique, declared boundary IDs            |
-| `owner`                  | object | always required: `milestone` (configured pattern), optional `issue` (configured pattern, nullable), `workstream` (configured vocabulary) |
+| `owner`                  | object | always required: `milestone` and optional nullable `issue` are first checked non-blank, bounded, and free of control and line-separator characters, then matched against the configured patterns; `workstream` (configured vocabulary) |
 | `mitigations`            | object | see below                                                        |
 
 `owner` and `disposition` are unconditionally required, which subsumes the
@@ -59,7 +59,7 @@ unique):
 | `adrs`         | decision-record identifiers (free-form, bounded)                  |
 | `requirements` | requirement IDs (stable-ID format); resolved against the requirements matrix by `validate -requirements` — links must name *active* requirement IDs, and links to retired IDs are rejected with their replacements named |
 | `tests`        | planned test or evidence identifiers (free-form, bounded)         |
-| `risks`        | risk-record identifiers matching the configured `risk_pattern`    |
+| `risks`        | risk-record identifiers, control- and line-separator-free, matching the configured `risk_pattern` |
 
 Disposition coupling:
 

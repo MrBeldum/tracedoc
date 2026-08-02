@@ -537,3 +537,32 @@ func TestCompareCommandRejectsInvalidCandidate(t *testing.T) {
 		t.Fatalf("expected invalid-candidate rejection with exit 1, got %d: %s", exitCode, stderr)
 	}
 }
+
+// TestValidateDecodeFailures pins the exit-2 decode branch for both
+// document types: a type-identifiable document whose body fails the
+// strict decode must be reported as a decode failure, not silently
+// treated as valid or conflated with validation (exit 1).
+func TestValidateDecodeFailures(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+
+	malformedThreats := testsupport.WriteRaw(
+		t, []byte(`{"document_type":"threat_model","threats":"not-an-array"}`),
+	)
+	exitCode, _, stderr := runCommand(
+		t, "validate", "-config", config,
+		"-doc", malformedThreats, "-requirements", matrixPath,
+	)
+	if exitCode != 2 || !strings.Contains(stderr, "cannot decode document") {
+		t.Fatalf("expected threat-model decode failure, got %d: %s", exitCode, stderr)
+	}
+
+	malformedMatrix := testsupport.WriteRaw(
+		t, []byte(`{"document_type":"requirements","standards":"not-an-array"}`),
+	)
+	exitCode, _, stderr = runCommand(
+		t, "validate", "-config", config, "-doc", malformedMatrix,
+	)
+	if exitCode != 2 || !strings.Contains(stderr, "cannot decode document") {
+		t.Fatalf("expected requirements decode failure, got %d: %s", exitCode, stderr)
+	}
+}

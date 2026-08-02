@@ -246,3 +246,35 @@ func TestSortedSetDifference(t *testing.T) {
 		}
 	})
 }
+
+func TestControlFreeString(t *testing.T) {
+	var c check.Checker
+	if !c.ControlFreeString("loc", "plain value with spaces") {
+		t.Fatal("plain value rejected")
+	}
+	for name, value := range map[string]string{
+		"newline":             "a\nb",
+		"escape":              "a\x1bb",
+		"NEL":                 "a\u0085b",
+		"line separator":      "a\u2028b",
+		"paragraph separator": "a\u2029b",
+	} {
+		c := check.Checker{}
+		if c.ControlFreeString("loc", value) {
+			t.Errorf("%s accepted", name)
+		}
+		if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control character" {
+			t.Errorf("%s: unexpected errors %v", name, c.Errs)
+		}
+	}
+}
+
+func TestBoundedControlFreeStringRejectsLineSeparators(t *testing.T) {
+	var c check.Checker
+	if c.BoundedControlFreeString("loc", "a\u2028b") {
+		t.Fatal("line separator accepted")
+	}
+	if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control character" {
+		t.Fatalf("unexpected errors %v", c.Errs)
+	}
+}

@@ -54,6 +54,25 @@ tag, so the multi-document design ships from the start.
   [docs/config.md](docs/config.md), and the release and update policy in
   [docs/versioning.md](docs/versioning.md), including tag-triggered
   release verification.
+
+### Fixed (pre-release review hardening)
+
+Defects found and fixed by multi-agent review before the first tag; none
+ever shipped in a release:
+
+- Link destinations percent-encode every control rune and the Unicode
+  line and paragraph separators, closing a demonstrated Markdown
+  structure-injection path and making the escape safe by construction.
+- `owner.milestone`, `owner.issue`, and risk-record entries are checked
+  non-blank, bounded, and free of control and line-separator characters
+  before any consumer-configured pattern runs, so permissive patterns can
+  no longer admit values the renderer must not receive.
+- Renderers return a descriptive error instead of panicking when handed a
+  document that skipped validation.
+- Semantic-version components are compared as strings, eliminating an
+  integer-overflow conflation of distinct oversized versions.
+- A citation naming an unknown standard keeps its lexical URI checks and
+  no longer cascades a redundant policy diagnostic.
 - Binary distribution for non-Go consumers: the release workflow
   cross-compiles static binaries (linux, macOS, windows; amd64 and arm64)
   from the verified tag, generates a `SHA256SUMS` file, and attaches both

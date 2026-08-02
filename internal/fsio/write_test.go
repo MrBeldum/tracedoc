@@ -1,6 +1,8 @@
 package fsio
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -116,7 +118,11 @@ func TestAtomicOutputReadOnlyParentDirectoryFails(t *testing.T) {
 	})
 
 	outputPath := filepath.Join(parent, "matrix.md")
-	if err := WriteFileAtomic(outputPath, []byte("rendered\n")); err == nil {
+	err := WriteFileAtomic(outputPath, []byte("rendered\n"))
+	if err == nil {
 		t.Fatal("expected write into a read-only parent directory to fail")
+	}
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("expected a permission error, got %v", err)
 	}
 }

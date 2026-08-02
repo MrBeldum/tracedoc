@@ -207,6 +207,14 @@ func TestMatrixValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "unknown citation standard with malformed URI keeps lexical check",
+			want: "contains whitespace, a control character, or a backslash",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Citations[0].Standard = "UNKNOWN"
+				doc.Requirements[0].Citations[0].URI = "https://evil.example/a b"
+			},
+		},
+		{
 			name: "unknown citation standard",
 			want: `unknown standard "UNKNOWN"`,
 			// An unknown standard has no URI policy to check the citation
@@ -433,6 +441,38 @@ func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
 			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
 		}
 	})
+
+	t.Run("issue with a Unicode line separator is rejected", func(t *testing.T) {
+		// U+2028 is category Zl, not Cc, so it needs the explicit
+		// line-separator rejection rather than unicode.IsControl.
+		permissive := pol
+		permissive.Issue = regexp.MustCompile(`(?s)^.*$`)
+
+		doc := fixtureDocument(t)
+		issue := "#36\u2028sneaky"
+		doc.Requirements[0].Owner.Issue = &issue
+
+		errs := matrix.Validate(doc, permissive)
+		if !strings.Contains(errs.Error(), "contains a control character") {
+			t.Fatalf("expected line-separator rejection, got:\n%s", errs)
+		}
+	})
+}
+
+// TestRiskEntriesAreControlFreeUnderPermissivePattern mirrors the owner
+// regression test for the risks list: a consumer Risk pattern is policy,
+// not a lexical safety net.
+func TestRiskEntriesAreControlFreeUnderPermissivePattern(t *testing.T) {
+	permissive := fixturePolicy(t)
+	permissive.Risk = regexp.MustCompile(`(?s)^.*$`)
+
+	doc := fixtureDocument(t)
+	doc.Requirements[0].Traceability.Risks = []string{"R1\x1b[31mred"}
+
+	errs := matrix.Validate(doc, permissive)
+	if !strings.Contains(errs.Error(), "contains a control character") {
+		t.Fatalf("expected control-character rejection for a risk entry, got:\n%s", errs)
+	}
 }
 
 // TestApplicabilityNotApplicableValidatesCleanly is positive enum coverage:

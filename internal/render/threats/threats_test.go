@@ -166,16 +166,20 @@ func TestConsumerTemplateOverride(t *testing.T) {
 // intermediate maps (threatsByAsset, threatsByBoundary, threatsBySeverity)
 // leaking Go's randomized map-iteration order into the rendered output.
 func TestRenderingIsDeterministic(t *testing.T) {
+	// Twenty passes shrink the chance that randomized map iteration
+	// happens to coincide, which a two-pass comparison could miss.
 	first, err := Render(fixtureDocument(t), fixtureOptions(), "")
 	if err != nil {
 		t.Fatalf("render first pass: %v", err)
 	}
-	second, err := Render(fixtureDocument(t), fixtureOptions(), "")
-	if err != nil {
-		t.Fatalf("render second pass: %v", err)
-	}
-	if first != second {
-		t.Fatal("rendering the same document twice produced different output")
+	for pass := 0; pass < 19; pass++ {
+		next, err := Render(fixtureDocument(t), fixtureOptions(), "")
+		if err != nil {
+			t.Fatalf("render pass %d: %v", pass+2, err)
+		}
+		if next != first {
+			t.Fatalf("render pass %d differed from the first", pass+2)
+		}
 	}
 }
 

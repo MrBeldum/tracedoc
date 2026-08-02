@@ -493,3 +493,19 @@ func TestHasRequirementLinks(t *testing.T) {
 		t.Fatal("expected no requirement links after clearing")
 	}
 }
+
+// TestRiskEntriesAreControlFreeUnderPermissivePattern mirrors the owner
+// regression test for the mitigations risks list: a consumer Risk pattern
+// is policy, not a lexical safety net.
+func TestRiskEntriesAreControlFreeUnderPermissivePattern(t *testing.T) {
+	permissive := fixturePolicy(t)
+	permissive.Risk = regexp.MustCompile(`(?s)^.*$`)
+
+	doc := fixtureDocument(t)
+	threatByID(t, &doc, "THRT-002").Mitigations.Risks = []string{"R12\x1b[31mred"}
+
+	errs := threats.Validate(doc, permissive, fixtureIndex())
+	if !strings.Contains(errs.Error(), "contains a control character") {
+		t.Fatalf("expected control-character rejection for a risk entry, got:\n%s", errs)
+	}
+}

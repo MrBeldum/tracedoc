@@ -136,10 +136,11 @@ Free-text document fields must always pass through the escaping functions
 (`htmlText`, `prose`, `table`, `linkLabel`, `inlineValues`,
 `linkDestination`, `inlineCode`); emitting document fields raw lets
 document authors inject Markdown or HTML into the rendered output. Stable
-ID fields (`^[A-Z][A-Z0-9]*-[0-9]{3}$`) and the fixed enum vocabularies
+ID fields (`^[A-Z][A-Z0-9]*-[0-9]{3}$`), standard keys
+(`^[A-Z][A-Z0-9]*(?:[-.][A-Z0-9]+)*$`), and the fixed enum vocabularies
 (`applicability`, `evidence_status`, `severity`, `disposition`) are
 exempt in the default templates and may be emitted bare only because the
-schema constrains their character set to values that cannot carry Markdown
+schema constrains their character sets to values that cannot carry Markdown
 or HTML structure; anything else emitted raw is an injection risk. Section
 layout and precomputed-section membership may change in minor releases;
 pin the tool version to keep byte-identical output, and re-verify consumer

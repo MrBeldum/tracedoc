@@ -120,3 +120,17 @@ func TestLinkDestinationNeutralizesLineBreaks(t *testing.T) {
 		}
 	})
 }
+
+func TestLinkDestinationEncodesSeparatorsByConstruction(t *testing.T) {
+	cases := map[string]string{
+		"a\u2028b": "a%E2%80%A8b",
+		"a\u2029b": "a%E2%80%A9b",
+		"a\u0085b": "a%C2%85b",
+		"a\x1bb":   "a%1Bb",
+	}
+	for input, want := range cases {
+		if got := LinkDestination(input); got != want {
+			t.Errorf("LinkDestination(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

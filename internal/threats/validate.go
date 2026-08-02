@@ -227,10 +227,7 @@ func (v *validator) owner(location string, item *Owner) {
 		return
 	}
 	location += ".owner"
-	// The pattern check runs only once the value is confirmed non-blank,
-	// bounded, and control-character-free: a consumer-supplied pattern is
-	// policy, not a lexical safety net, so a permissive pattern must never
-	// let an oversized or control-bearing value through undetected.
+	// Bounds before pattern; see check.BoundedControlFreeString for why.
 	if v.BoundedControlFreeString(location+".milestone", item.Milestone) &&
 		(v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone)) {
 		v.Add(location+".milestone", "invalid milestone")
@@ -265,11 +262,10 @@ func (v *validator) mitigations(location string, item Threat) {
 	}
 	if v.StringList(mitigationsLocation+".risks", mitigations.Risks, false) {
 		for index, risk := range mitigations.Risks {
-			if v.policy.Risk == nil || !v.policy.Risk.MatchString(risk) {
-				v.Addf(
-					fmt.Sprintf("%s.risks[%d]", mitigationsLocation, index),
-					"invalid risk %q", risk,
-				)
+			itemLocation := fmt.Sprintf("%s.risks[%d]", mitigationsLocation, index)
+			if v.ControlFreeString(itemLocation, risk) &&
+				(v.policy.Risk == nil || !v.policy.Risk.MatchString(risk)) {
+				v.Addf(itemLocation, "invalid risk %q", risk)
 			}
 		}
 	}
