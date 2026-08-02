@@ -127,6 +127,58 @@ func TestRenderRejectsUnvalidatedDocument(t *testing.T) {
 	}
 }
 
+// TestWithdrawalRendering mirrors the requirements-renderer coverage: a
+// supersession with an explicitly empty replacement set (a withdrawal) must
+// render as "Withdrawn without successor" rather than an empty cell.
+func TestWithdrawalRendering(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Supersessions = append(doc.Supersessions, threatsdoc.Supersession{
+		RetiredID:      "THRT-901",
+		ReplacementIDs: []string{},
+		Rationale:      "Withdrawn after the affected surface was removed.",
+	})
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render withdrawal: %v", err)
+	}
+	if !strings.Contains(rendered, "| `THRT-901` | Withdrawn without successor |") {
+		t.Fatal("withdrawal row not rendered as expected")
+	}
+}
+
+// TestConsumerTemplateOverride mirrors the requirements-renderer coverage:
+// Render must use a non-empty templateText argument instead of the embedded
+// default template, and the "issueURL" template function must be available
+// to it.
+func TestConsumerTemplateOverride(t *testing.T) {
+	template := `{{define "document"}}custom {{.Document.DocumentVersion}} {{issueURL "#9"}}{{end}}`
+	rendered, err := Render(fixtureDocument(t), fixtureOptions(), template)
+	if err != nil {
+		t.Fatalf("render with consumer template: %v", err)
+	}
+	want := "custom 0.1.0 https://github.com/example/project/issues/9"
+	if rendered != want {
+		t.Fatalf("expected %q, got %q", want, rendered)
+	}
+}
+
+// TestRenderingIsDeterministic guards against the view construction's
+// intermediate maps (threatsByAsset, threatsByBoundary, threatsBySeverity)
+// leaking Go's randomized map-iteration order into the rendered output.
+func TestRenderingIsDeterministic(t *testing.T) {
+	first, err := Render(fixtureDocument(t), fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render first pass: %v", err)
+	}
+	second, err := Render(fixtureDocument(t), fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render second pass: %v", err)
+	}
+	if first != second {
+		t.Fatal("rendering the same document twice produced different output")
+	}
+}
+
 func TestViewGrouping(t *testing.T) {
 	doc := fixtureDocument(t)
 	view := newView(doc, fixtureOptions())

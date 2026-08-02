@@ -337,6 +337,48 @@ func TestThreatModelValidation(t *testing.T) {
 					strings.Repeat("x", 16385)
 			},
 		},
+		{
+			name: "blank description",
+			want: "threats[0].description: expected a non-empty string",
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].Description = ""
+			},
+		},
+		{
+			name: "blank mitigations test item",
+			want: "mitigations.tests[0]: expected a non-empty string",
+			mutate: func(doc *threats.Document) {
+				threatByID(t, doc, "THRT-001").Mitigations.Tests = []string{""}
+			},
+		},
+		{
+			name: "empty assets array",
+			want: "assets: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.Assets = []threats.Asset{}
+			},
+		},
+		{
+			name: "empty trust boundaries array",
+			want: "trust_boundaries: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.TrustBoundaries = []threats.Boundary{}
+			},
+		},
+		{
+			name: "empty threats array",
+			want: "threats: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.Threats = []threats.Threat{}
+			},
+		},
+		{
+			name: "nil supersessions",
+			want: "supersessions: expected an array",
+			mutate: func(doc *threats.Document) {
+				doc.Supersessions = nil
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -385,6 +427,49 @@ func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
 			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
 		}
 	})
+}
+
+// TestSeverityLowValidatesCleanly is positive enum coverage: "low" is a
+// legal severity value, not just a value that must be rejected when
+// unsupported.
+func TestSeverityLowValidatesCleanly(t *testing.T) {
+	pol := fixturePolicy(t)
+	doc := fixtureDocument(t)
+	threatByID(t, &doc, "THRT-003").Severity = "low"
+	if errs := threats.Validate(doc, pol, fixtureIndex()); len(errs) > 0 {
+		t.Fatalf("severity %q rejected:\n%s", "low", errs)
+	}
+}
+
+// TestDispositionRationaleEnumCoverage is positive and negative enum
+// coverage for the two disposition values not otherwise exercised by the
+// mutation table: "transferred" and "avoided" both require a rationale
+// (rationaleRequired in validate.go), and both validate cleanly once one is
+// supplied.
+func TestDispositionRationaleEnumCoverage(t *testing.T) {
+	pol := fixturePolicy(t)
+	for _, disposition := range []string{"transferred", "avoided"} {
+		t.Run(disposition+" with rationale validates cleanly", func(t *testing.T) {
+			doc := fixtureDocument(t)
+			threat := threatByID(t, &doc, "THRT-003")
+			threat.Disposition = disposition
+			threat.DispositionRationale = "Ownership " + disposition + " with a documented rationale."
+			if errs := threats.Validate(doc, pol, fixtureIndex()); len(errs) > 0 {
+				t.Fatalf("disposition %q with rationale rejected:\n%s", disposition, errs)
+			}
+		})
+		t.Run(disposition+" without rationale is rejected", func(t *testing.T) {
+			doc := fixtureDocument(t)
+			threat := threatByID(t, &doc, "THRT-003")
+			threat.Disposition = disposition
+			threat.DispositionRationale = ""
+			errs := threats.Validate(doc, pol, fixtureIndex())
+			want := "required for " + disposition
+			if !strings.Contains(errs.Error(), want) {
+				t.Fatalf("expected %q, got:\n%s", want, errs)
+			}
+		})
+	}
 }
 
 func TestRequirementLinksSkippedWithoutIndex(t *testing.T) {

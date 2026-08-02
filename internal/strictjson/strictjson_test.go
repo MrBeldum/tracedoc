@@ -87,6 +87,23 @@ func TestDecodeRejections(t *testing.T) {
 		}
 	})
 
+	t.Run("nesting depth boundary", func(t *testing.T) {
+		// nestedObject builds `{"a":{"a": ... null ... }}` with exactly
+		// depth levels of object nesting around the scalar null.
+		nestedObject := func(depth int) string {
+			return strings.Repeat(`{"a":`, depth) + `null` + strings.Repeat(`}`, depth)
+		}
+
+		var out any
+		if err := Decode([]byte(nestedObject(MaxDepth)), &out); err != nil {
+			t.Fatalf("nesting at exactly MaxDepth should be accepted, got %v", err)
+		}
+		if err := Decode([]byte(nestedObject(MaxDepth+1)), &out); err == nil ||
+			!strings.Contains(err.Error(), "JSON nesting exceeds depth limit") {
+			t.Fatalf("expected MaxDepth+1 nesting to be rejected, got %v", err)
+		}
+	})
+
 	t.Run("malformed scalar", func(t *testing.T) {
 		if err := decodeString(t, `{"schema_version":[]}`); err == nil {
 			t.Fatal("expected malformed scalar to be rejected")

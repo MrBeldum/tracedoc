@@ -347,6 +347,41 @@ func TestMatrixValidation(t *testing.T) {
 				})
 			},
 		},
+		{
+			name: "blank title",
+			want: "requirements[0].title: expected a non-empty string",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].Title = ""
+			},
+		},
+		{
+			name: "blank evidence item",
+			want: "planned_verification.evidence[0]: expected a non-empty string",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements[0].PlannedVerification.Evidence = []string{""}
+			},
+		},
+		{
+			name: "empty standards array",
+			want: "standards: expected a non-empty array",
+			mutate: func(doc *matrix.Document) {
+				doc.Standards = []matrix.Standard{}
+			},
+		},
+		{
+			name: "empty requirements array",
+			want: "requirements: expected a non-empty array",
+			mutate: func(doc *matrix.Document) {
+				doc.Requirements = []matrix.Requirement{}
+			},
+		},
+		{
+			name: "nil supersessions",
+			want: "supersessions: expected an array",
+			mutate: func(doc *matrix.Document) {
+				doc.Supersessions = nil
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -398,4 +433,31 @@ func TestOwnerMilestoneAndIssueAreBoundedAndControlCharacterFree(t *testing.T) {
 			t.Fatalf("expected control-character rejection under a permissive pattern, got:\n%s", errs)
 		}
 	})
+}
+
+// TestApplicabilityNotApplicableValidatesCleanly is positive enum coverage:
+// "not-applicable" applicability, paired with a matching "not-applicable"
+// evidence_status and a rationale, is a legal in-memory mutation of the
+// fixture document, not just a rejection case.
+func TestApplicabilityNotApplicableValidatesCleanly(t *testing.T) {
+	pol := fixturePolicy(t)
+	doc := fixtureDocument(t)
+	item := requirementByID(t, &doc, "RFCX-001")
+	item.Applicability = "not-applicable"
+	item.ApplicabilityRationale = "No longer relevant to the current project scope."
+	item.EvidenceStatus = "not-applicable"
+	if errs := matrix.Validate(doc, pol); len(errs) > 0 {
+		t.Fatalf("not-applicable requirement rejected:\n%s", errs)
+	}
+}
+
+// TestEvidenceStatusVerifiedValidatesCleanly is positive enum coverage:
+// "verified" is a legal evidence_status for an applicable requirement.
+func TestEvidenceStatusVerifiedValidatesCleanly(t *testing.T) {
+	pol := fixturePolicy(t)
+	doc := fixtureDocument(t)
+	doc.Requirements[0].EvidenceStatus = "verified"
+	if errs := matrix.Validate(doc, pol); len(errs) > 0 {
+		t.Fatalf("verified evidence status rejected:\n%s", errs)
+	}
 }

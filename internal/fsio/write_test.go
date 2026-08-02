@@ -87,3 +87,36 @@ func TestAtomicOutputCleansUpAfterRenameFailure(t *testing.T) {
 		t.Fatalf("temporary files remain after failure: %q", matches)
 	}
 }
+
+// TestAtomicOutputReadOnlyParentDirectoryFails checks that a permission
+// failure creating the same-directory temporary file (rather than a
+// rename failure, covered above) is also surfaced as an error, not
+// swallowed or panicked on. Root and Windows both ignore or do not apply
+// directory write-permission bits the way this test expects, so it is
+// skipped there.
+func TestAtomicOutputReadOnlyParentDirectoryFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory write permissions are not enforced the same way on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permission bits")
+	}
+
+	parent := filepath.Join(t.TempDir(), "readonly")
+	if err := os.Mkdir(parent, 0o755); err != nil {
+		t.Fatalf("create parent directory: %v", err)
+	}
+	if err := os.Chmod(parent, 0o555); err != nil {
+		t.Fatalf("make parent directory read-only: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o755); err != nil {
+			t.Fatalf("restore parent directory permissions: %v", err)
+		}
+	})
+
+	outputPath := filepath.Join(parent, "matrix.md")
+	if err := WriteFileAtomic(outputPath, []byte("rendered\n")); err == nil {
+		t.Fatal("expected write into a read-only parent directory to fail")
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/sofired/matrix-service/internal/matrix"
+	"github.com/sofired/matrix-service/internal/policy"
 	"github.com/sofired/matrix-service/internal/testsupport"
 	"github.com/sofired/matrix-service/internal/threats"
 )
@@ -434,6 +435,89 @@ func TestCompareCommandFailureCategories(t *testing.T) {
 				t.Fatalf("expected %q with exit 1, got %d: %s", test.want, exitCode, stderr)
 			}
 		})
+	}
+}
+
+// TestRenderWithTemplateOverride is an end-to-end check that -template
+// reaches the renderer through the full CLI path: flag parsing, config and
+// document loading, and the atomic file write, using a consumer-supplied
+// template file rather than the embedded default.
+func TestRenderWithTemplateOverride(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+	templatePath := filepath.Join(t.TempDir(), "custom.md.tmpl")
+	templateText := `{{define "document"}}custom rendering of {{.Document.DocumentVersion}}{{end}}`
+	if err := os.WriteFile(templatePath, []byte(templateText), 0o644); err != nil {
+		t.Fatalf("write template override: %v", err)
+	}
+	outputPath := filepath.Join(t.TempDir(), "out.md")
+
+	exitCode, stdout, stderr := runCommand(
+		t, "render", "-config", config, "-doc", matrixPath,
+		"-output", outputPath, "-template", templatePath,
+	)
+	if exitCode != 0 {
+		t.Fatalf("render with template override failed %d: %s%s", exitCode, stdout, stderr)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read rendered output: %v", err)
+	}
+	want := "custom rendering of 0.2.0"
+	if string(data) != want {
+		t.Fatalf("expected rendered output %q, got %q", want, data)
+	}
+}
+
+func TestUnknownFlagRejected(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+	exitCode, _, stderr := runCommand(
+		t, "validate", "-config", config, "-doc", matrixPath, "-bogus",
+	)
+	if exitCode != 2 {
+		t.Fatalf("expected exit 2 for an unknown flag, got %d: %s", exitCode, stderr)
+	}
+}
+
+// TestValidateThreatModelMissingConfigSection checks the CLI's own error
+// path for a config that loads successfully but has no threat_model
+// section: ThreatsPolicy's error must reach the user as an exit-2 usage
+// error, not a panic or a swallowed failure.
+func TestValidateThreatModelMissingConfigSection(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+	loaded, err := policy.Load(config)
+	if err != nil {
+		t.Fatalf("load fixture config: %v", err)
+	}
+	loaded.ThreatModel = nil
+	noThreatModelConfig := testsupport.WriteJSON(t, loaded)
+
+	exitCode, _, stderr := runCommand(
+		t, "validate", "-config", noThreatModelConfig,
+		"-doc", threatsFixture(t), "-requirements", matrixPath,
+	)
+	if exitCode != 2 || !strings.Contains(stderr, "no threat_model section") {
+		t.Fatalf("expected missing threat_model section rejection, got %d: %s", exitCode, stderr)
+	}
+}
+
+// TestRenderMissingConfigSection is the render-command counterpart: a
+// config missing the section for the document type being rendered must
+// fail with exit 2 before any output is written.
+func TestRenderMissingConfigSection(t *testing.T) {
+	config, matrixPath := fixtureArgs(t)
+	loaded, err := policy.Load(config)
+	if err != nil {
+		t.Fatalf("load fixture config: %v", err)
+	}
+	loaded.Requirements = nil
+	noRequirementsConfig := testsupport.WriteJSON(t, loaded)
+
+	exitCode, _, stderr := runCommand(
+		t, "render", "-config", noRequirementsConfig, "-doc", matrixPath,
+		"-output", filepath.Join(t.TempDir(), "out.md"),
+	)
+	if exitCode != 2 || !strings.Contains(stderr, "no requirements section") {
+		t.Fatalf("expected missing requirements section rejection, got %d: %s", exitCode, stderr)
 	}
 }
 

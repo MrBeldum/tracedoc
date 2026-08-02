@@ -208,6 +208,24 @@ func TestRenderRejectsUnvalidatedDocument(t *testing.T) {
 	}
 }
 
+// TestRenderingIsDeterministic guards against the view construction's
+// intermediate maps (applicabilityCounts, statusCounts,
+// requirementsByStandard, requirementsByOwner) leaking Go's randomized
+// map-iteration order into the rendered output.
+func TestRenderingIsDeterministic(t *testing.T) {
+	first, err := Render(fixtureDocument(t), fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render first pass: %v", err)
+	}
+	second, err := Render(fixtureDocument(t), fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render second pass: %v", err)
+	}
+	if first != second {
+		t.Fatal("rendering the same document twice produced different output")
+	}
+}
+
 func TestConsumerTemplateOverride(t *testing.T) {
 	template := `{{define "document"}}custom {{.Document.DocumentVersion}} {{issueURL "#9"}}{{end}}`
 	rendered, err := Render(fixtureDocument(t), fixtureOptions(), template)

@@ -222,6 +222,31 @@ func TestConfigRejections(t *testing.T) {
 			want:   "threat_model.render.check_command: contains a control character",
 			mutate: func(c *Config) { c.ThreatModel.Render.CheckCommand = "matrix\nrender" },
 		},
+		{
+			name:   "empty standard sources array",
+			want:   "requirements.standard_sources: expected a non-empty array",
+			mutate: func(c *Config) { c.Requirements.StandardSources = []StandardSource{} },
+		},
+		{
+			name:   "nil required standards",
+			want:   "requirements.required_standards: expected an array",
+			mutate: func(c *Config) { c.Requirements.RequiredStandards = nil },
+		},
+		{
+			name:   "malformed key in standard sources",
+			want:   "requirements.standard_sources[0].key: expected a stable standard key",
+			mutate: func(c *Config) { c.Requirements.StandardSources[0].Key = "example-core" },
+		},
+		{
+			name:   "malformed key in required standards",
+			want:   "requirements.required_standards[0]: expected a stable standard key",
+			mutate: func(c *Config) { c.Requirements.RequiredStandards[0] = "example-core" },
+		},
+		{
+			name:   "single-label host",
+			want:   "expected a lowercase DNS host name",
+			mutate: func(c *Config) { c.Requirements.StandardSources[0].Host = "localhost" },
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
