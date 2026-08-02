@@ -139,7 +139,7 @@ func TestMatrixValidation(t *testing.T) {
 			},
 		},
 		{
-			name: "malformed tracedoc version",
+			name: "malformed document version",
 			want: "expected a semantic version",
 			mutate: func(doc *matrix.Document) {
 				doc.DocumentVersion = "1.0.0-01"
