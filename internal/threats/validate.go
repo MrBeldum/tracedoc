@@ -63,9 +63,6 @@ var (
 // PriorityOrder is the schema-owned display order for threat priorities.
 var PriorityOrder = []string{"critical", "high", "medium", "low"}
 
-// RatingOrder is the schema-owned display order for likelihood and severity.
-var RatingOrder = []string{"high", "medium", "low"}
-
 // TreatmentOrder is the schema-owned display order for treatments.
 var TreatmentOrder = []string{"mitigate", "accept", "avoid", "transfer"}
 
@@ -686,7 +683,7 @@ func (v *validator) referenceList(
 
 func (v *validator) diagrams(items []Diagram) {
 	if items == nil {
-		v.Add("diagrams", "expected an array")
+		v.requireArray("diagrams", true)
 		return
 	}
 	for index, item := range items {
@@ -767,7 +764,6 @@ func (v *validator) requirementLink(location, id string) {
 func (v *validator) analyse(doc Document) {
 	for _, threat := range doc.Threats {
 		mark(v.assets, threat.AssetLinks)
-		mark(v.actors, threat.ActorLinks)
 		mark(v.boundaries, threat.BoundaryLinks)
 		mark(v.flows, threat.FlowLinks)
 		mark(v.controls, threat.ControlLinks)
@@ -788,57 +784,67 @@ func mark(set *idSet, ids []string) {
 	}
 }
 
-// analyseEntryPoints records an entry point as analysed only when one
-// threat reaches it the way an attacker would: across its boundary *and*
-// along one of its flows. Matching either alone is the false positive this
-// rule exists to reject — a threat that crosses the same boundary by a
-// different route has not analysed this surface.
+// analyseEntryPoints credits an entry point using Threat.ReachesEntryPoint,
+// the single definition of that predicate.
+//
+// Threats are indexed by the boundaries they cross first, so only threats
+// that could possibly reach an entry point are tested. Scanning every
+// threat per entry point would be quadratic, and a crafted document can
+// declare far more threats than the identifier space suggests: threat IDs
+// take any prefix, so their count is bounded only by the document size
+// limit.
 func (v *validator) analyseEntryPoints(doc Document) {
+	crossing := make(map[string][]Threat, len(doc.TrustBoundaries))
+	for _, threat := range doc.Threats {
+		for _, boundary := range threat.BoundaryLinks {
+			crossing[boundary] = append(crossing[boundary], threat)
+		}
+	}
 	for _, entry := range doc.EntryPoints {
 		if !check.Contains(v.entryPoints.declared, entry.ID) {
 			continue
 		}
-		for _, threat := range doc.Threats {
-			if !containsString(threat.BoundaryLinks, entry.Boundary) {
-				continue
+		for _, threat := range crossing[entry.Boundary] {
+			if threat.ReachesEntryPoint(entry) {
+				v.entryPoints.analysed[entry.ID] = struct{}{}
+				break
 			}
-			if !intersects(threat.FlowLinks, entry.Flows) {
-				continue
-			}
-			v.entryPoints.analysed[entry.ID] = struct{}{}
-			break
 		}
 	}
 }
 
 func (v *validator) coverage() {
+	const unanalysed = "%s %q is declared but never analysed"
 	rules := []struct {
 		enabled bool
 		field   string
 		set     *idSet
+		// Most rules ask whether a threat analysed this entity. The
+		// evidence rule asks the reverse, so it needs its own wording: a
+		// threat is analysed by definition — what it can lack is planned
+		// evidence naming it.
+		message string
 	}{
-		{v.policy.Coverage.Assets, "assets", v.assets},
-		{v.policy.Coverage.Boundaries, "trust_boundaries", v.boundaries},
-		{v.policy.Coverage.Flows, "data_flows", v.flows},
-		{v.policy.Coverage.EntryPoints, "entry_points", v.entryPoints},
-		{v.policy.Coverage.Controls, "controls", v.controls},
-		{v.policy.Coverage.Risks, "risks", v.risks},
-		{v.policy.Coverage.Evidence, "threats", v.threats},
+		{v.policy.Coverage.Assets, "assets", v.assets, unanalysed},
+		{v.policy.Coverage.Boundaries, "trust_boundaries", v.boundaries, unanalysed},
+		{v.policy.Coverage.Flows, "data_flows", v.flows, unanalysed},
+		{v.policy.Coverage.EntryPoints, "entry_points", v.entryPoints, unanalysed},
+		{v.policy.Coverage.Controls, "controls", v.controls, unanalysed},
+		{v.policy.Coverage.Risks, "risks", v.risks, unanalysed},
+		{v.policy.Coverage.Evidence, "threats", v.threats, "%s %q has no planned evidence naming it"},
 	}
 	for _, rule := range rules {
 		if !rule.enabled {
 			continue
 		}
 		for _, id := range check.SortedSetDifference(rule.set.declared, rule.set.analysed) {
-			v.Addf(rule.field, "%s %q is declared but never analysed", rule.set.noun, id)
+			v.Addf(rule.field, rule.message, rule.set.noun, id)
 		}
 	}
 }
 
 func (v *validator) supersessions(items []Supersession) {
-	if items == nil {
-		v.Add("supersessions", "expected an array")
-	}
+	v.requireArray("supersessions", items == nil)
 	for index, item := range items {
 		v.supersession(index, item)
 	}
@@ -868,22 +874,4 @@ func (v *validator) supersession(index int, item Supersession) {
 		}
 	}
 	v.RequiredString(location+".rationale", item.Rationale)
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
-func intersects(left, right []string) bool {
-	for _, value := range left {
-		if containsString(right, value) {
-			return true
-		}
-	}
-	return false
 }

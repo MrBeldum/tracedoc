@@ -254,6 +254,36 @@ type Supersession struct {
 	Rationale      string   `json:"rationale"`
 }
 
+// ReachesEntryPoint reports whether this threat reaches entry the way an
+// attacker would: across its trust boundary *and* along one of its data
+// flows. Matching either half alone does not count — a threat that crosses
+// the same boundary by a different route has not analysed this surface.
+//
+// This is the single definition of that predicate. Both the coverage rule
+// that certifies an entry point and the renderer that lists its threats
+// call it, so the rendered companion can never disagree with what
+// validation accepted.
+func (t Threat) ReachesEntryPoint(entry EntryPoint) bool {
+	if !containsString(t.BoundaryLinks, entry.Boundary) {
+		return false
+	}
+	for _, flow := range entry.Flows {
+		if containsString(t.FlowLinks, flow) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 // HasRequirementLinks reports whether any control links to a requirement
 // ID. Requirement links hang off controls, not threats: a threat is handled
 // because a control addresses it, and that control is what a requirement

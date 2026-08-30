@@ -256,7 +256,7 @@
 
 {{if .Risks}}| ID | Risk | Threats | Controls | Reference |
 | --- | --- | --- | --- | --- |
-{{range .Risks}}| `{{.ID}}` | {{table .Title}} | {{table (join .Threats ", ")}} | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
+{{range .Risks}}| {{inlineCode .ID}} | {{table .Title}} | {{table (join .Threats ", ")}} | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
 {{end}}{{else}}No risk records referenced.
 {{end}}
 ## Observability

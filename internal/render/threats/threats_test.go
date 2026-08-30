@@ -115,6 +115,49 @@ func TestDiagramReferencesAreEscaped(t *testing.T) {
 	}
 }
 
+// TestRiskIDsAreEscaped is a security regression test. Every other
+// identifier this template emits bare is schema-owned with a character
+// class that cannot carry Markdown structure. Risk IDs are the exception:
+// they follow the consumer-supplied risk_pattern, which validation treats
+// as policy rather than a lexical safety net, so a permissive pattern
+// admits Markdown metacharacters. Emitting one bare inside a code span let
+// it close the span, inject extra pipe-delimited cells, and — defeating the
+// point of the reference_hosts allowlist — inject a link to an arbitrary
+// destination through a field that is not a reference at all.
+func TestRiskIDsAreEscaped(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Risks[0].ID = "R1` | **INJECTED** | [pwn](https://evil.example/x) | y"
+
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render risk identifiers: %v", err)
+	}
+
+	var row string
+	for _, line := range strings.Split(rendered, "\n") {
+		if strings.Contains(line, "INJECTED") {
+			row = line
+			break
+		}
+	}
+	if row == "" {
+		t.Fatal("risk row not found in rendered output")
+	}
+
+	// The hostile value must sit inside one widened code fence. Asserting
+	// its absence would be wrong: the text is still there, it is simply
+	// inert as code-span content.
+	const fenced = "`` R1` \\| **INJECTED** \\| [pwn](https://evil.example/x) \\| y ``"
+	if !strings.Contains(row, fenced) {
+		t.Errorf("risk ID is not emitted as a single widened code span:\n%s", row)
+	}
+	// Row structure must survive: five columns, so six unescaped pipes. An
+	// injected pipe would shift every later cell into the wrong column.
+	if pipes := strings.Count(row, "|") - strings.Count(row, `\|`); pipes != 6 {
+		t.Errorf("risk row has %d unescaped pipes, want 6:\n%s", pipes, row)
+	}
+}
+
 // TestRenderRejectsUnvalidatedDocument is the regression test companion to
 // the requirements-renderer panic: the threats renderer only survived a nil
 // Owner by accident, because text/template recovers panics raised inside

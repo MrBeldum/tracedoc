@@ -1,6 +1,9 @@
 package threats_test
 
 import (
+	"encoding/json"
+	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -778,7 +781,7 @@ func TestCoverageRules(t *testing.T) {
 		},
 		{
 			name:    "threat with no planned evidence",
-			want:    `threats: threat "THRT-001" is declared but never analysed`,
+			want:    `threats: threat "THRT-001" has no planned evidence naming it`,
 			disable: func(c *threats.Coverage) { c.Evidence = false },
 			mutate: func(doc *threats.Document) {
 				doc.PlannedEvidence[0].ThreatLinks = []string{"THRT-002"}
@@ -1059,5 +1062,60 @@ func TestHasRequirementLinks(t *testing.T) {
 	}
 	if doc.HasRequirementLinks() {
 		t.Fatal("expected no requirement links after clearing")
+	}
+}
+
+// TestEverySliceMemberIsRequiredPresent pins the invariant Compare depends
+// on. Compare decides "did this document change" with reflect.DeepEqual
+// over the whole document, and DeepEqual distinguishes a nil slice from an
+// empty one — so if any slice field could survive validation as nil, a
+// revision that merely spelled out an omitted array as [] would read as a
+// document change and demand a version bump.
+//
+// Driven by reflection over the struct's own JSON tags rather than a hand
+// list: a slice field added to Document in a future schema is covered here
+// the day it is added, and fails until it gets a presence check. Walking a
+// validated fixture would not do this — the fixture populates everything,
+// so nothing would ever be nil to find.
+func TestEverySliceMemberIsRequiredPresent(t *testing.T) {
+	raw, err := os.ReadFile(testsupport.FixturePath(t, "threats.json"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	documentType := reflect.TypeOf(threats.Document{})
+	for index := 0; index < documentType.NumField(); index++ {
+		field := documentType.Field(index)
+		if field.Type.Kind() != reflect.Slice {
+			continue
+		}
+		member := strings.Split(field.Tag.Get("json"), ",")[0]
+		t.Run("omitted "+member, func(t *testing.T) {
+			var document map[string]any
+			if err := json.Unmarshal(raw, &document); err != nil {
+				t.Fatalf("decode fixture: %v", err)
+			}
+			if _, present := document[member]; !present {
+				t.Fatalf("fixture does not exercise %q", member)
+			}
+			delete(document, member)
+
+			encoded, err := json.Marshal(document)
+			if err != nil {
+				t.Fatalf("encode mutated fixture: %v", err)
+			}
+			doc, err := threats.Decode(encoded)
+			if err != nil {
+				t.Fatalf("decode mutated fixture: %v", err)
+			}
+
+			errs := threats.Validate(doc, fixturePolicy(t), fixtureIndex())
+			if !strings.Contains(errs.Error(), member+":") {
+				t.Fatalf(
+					"omitting %q must be rejected, or Compare will read a later [] as a change; got:\n%s",
+					member, errs,
+				)
+			}
+		})
 	}
 }

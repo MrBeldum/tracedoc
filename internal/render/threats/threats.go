@@ -242,7 +242,7 @@ func newView(doc threats.Document, options render.Options) view {
 	for _, item := range doc.EntryPoints {
 		result.EntryPoints = append(result.EntryPoints, entryPoint{
 			EntryPoint: item,
-			Threats:    entryPointThreats(item, doc.Threats),
+			Threats:    entryPointThreats(item, byBoundary[item.Boundary]),
 		})
 	}
 	for _, item := range doc.Decisions {
@@ -285,32 +285,19 @@ func newView(doc threats.Document, options render.Options) view {
 	return result
 }
 
-// entryPointThreats lists the threats that reach an entry point the way the
-// validator's coverage rule counts it: across its boundary and along one of
-// its flows.
-func entryPointThreats(entry threats.EntryPoint, all []threats.Threat) []threats.Threat {
+// entryPointThreats lists the threats that reach an entry point, using the
+// same threats.Threat.ReachesEntryPoint predicate the coverage rule uses,
+// so this listing can never disagree with what validation certified. The
+// caller passes the threats already indexed as crossing that boundary;
+// document order is preserved, which the determinism guarantee depends on.
+func entryPointThreats(entry threats.EntryPoint, crossing []threats.Threat) []threats.Threat {
 	var result []threats.Threat
-	for _, item := range all {
-		if !contains(item.BoundaryLinks, entry.Boundary) {
-			continue
-		}
-		for _, flow := range entry.Flows {
-			if contains(item.FlowLinks, flow) {
-				result = append(result, item)
-				break
-			}
+	for _, item := range crossing {
+		if item.ReachesEntryPoint(entry) {
+			result = append(result, item)
 		}
 	}
 	return result
-}
-
-func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }
 
 // referenceTarget collapses a reference to its single destination. Validate
