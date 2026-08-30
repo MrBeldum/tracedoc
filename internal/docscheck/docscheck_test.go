@@ -206,6 +206,15 @@ func TestCorrectDocumentationIsNeverReported(t *testing.T) {
 		}))
 	})
 
+	t.Run("a comment delimiter quoted in a code span opens no comment", func(t *testing.T) {
+		// GitHub renders this as literal code, so the link after it is a
+		// live claim and must still be checked.
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nUse `<!--` to hide a note, then see [cli](docs/cli.md).\n",
+		})
+		requireClean(t, errs)
+	})
+
 	t.Run("a run block written with a chomping indicator", func(t *testing.T) {
 		requireClean(t, checkAll(t, map[string]string{
 			".github/workflows/ci.yml": strings.Replace(fixtureWorkflow, "run: |\n", "run: |-\n", 1),
@@ -372,6 +381,13 @@ func TestDetectionIsNotDefeatedByShape(t *testing.T) {
 			"CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n## 10.1.0 - 2026-09-02\n\n## 0.1.0 - Unreleased\n",
 		})
 		requireOnlyReport(t, errs, "CHANGELOG.md:7", "released version 0.1.0", "Unreleased", "YYYY-MM-DD")
+	})
+
+	t.Run("a dead link after a quoted comment delimiter is still reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nUse `<!--` to hide a note, then see [gone](docs/gone.md).\n",
+		})
+		requireOnlyReport(t, errs, "README.md:3", "docs/gone.md", "does not exist")
 	})
 
 	t.Run("a self-check command split across lines fails loudly", func(t *testing.T) {

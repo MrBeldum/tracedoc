@@ -555,31 +555,41 @@ func readDocument(fsys fs.FS, name string) ([]string, error) {
 // blankHTMLComments empties every HTML comment span, keeping one entry per
 // source line. GitHub renders none of it, so a link or heading left inside
 // a comment is a note to a future editor rather than a claim the document
-// makes. Fences are blanked first, so "<!--" shown inside a code example
-// does not open a comment.
+// makes.
+//
+// Fences are blanked first, and an inline code span is consumed whole, so
+// neither a comment delimiter shown in a code example nor one written as
+// `<!--` in prose opens a comment that would swallow the live links after
+// it. Comments, unlike code spans, may span lines.
 func blankHTMLComments(lines []string) []string {
 	blanked := make([]string, len(lines))
 	inComment := false
 	for index, line := range lines {
 		var prose strings.Builder
-		for line != "" {
-			if inComment {
-				end := strings.Index(line, "-->")
-				if end < 0 {
-					break
+		for position := 0; position < len(line); {
+			if length := codeSpanAt(line, position); length > 0 {
+				if !inComment {
+					prose.WriteString(line[position : position+length])
 				}
-				inComment = false
-				line = line[end+len("-->"):]
+				position += length
 				continue
 			}
-			start := strings.Index(line, "<!--")
-			if start < 0 {
-				prose.WriteString(line)
-				break
+			if inComment {
+				if strings.HasPrefix(line[position:], "-->") {
+					inComment = false
+					position += len("-->")
+					continue
+				}
+				position++
+				continue
 			}
-			prose.WriteString(line[:start])
-			line = line[start+len("<!--"):]
-			inComment = true
+			if strings.HasPrefix(line[position:], "<!--") {
+				inComment = true
+				position += len("<!--")
+				continue
+			}
+			prose.WriteByte(line[position])
+			position++
 		}
 		blanked[index] = prose.String()
 	}
@@ -636,35 +646,39 @@ func fenceMarker(line string) string {
 func splitCodeSpans(line string) (spans []string, prose string) {
 	var rest strings.Builder
 	for index := 0; index < len(line); {
-		if line[index] != '`' {
+		length := codeSpanAt(line, index)
+		if length == 0 {
 			rest.WriteByte(line[index])
 			index++
 			continue
 		}
-		opening := leadingRun(line[index:], '`')
-		closing := -1
-		for scan := index + opening; scan < len(line); {
-			if line[scan] != '`' {
-				scan++
-				continue
-			}
-			run := leadingRun(line[scan:], '`')
-			if run == opening {
-				closing = scan
-				break
-			}
-			scan += run
-		}
-		if closing < 0 {
-			// An unmatched run is literal text, not a span.
-			rest.WriteString(line[index : index+opening])
-			index += opening
-			continue
-		}
-		spans = append(spans, line[index+opening:closing])
-		index = closing + opening
+		delimiter := leadingRun(line[index:], '`')
+		spans = append(spans, line[index+delimiter:index+length-delimiter])
+		index += length
 	}
 	return spans, rest.String()
+}
+
+// codeSpanAt returns the byte length of the inline code span beginning at
+// index, delimiters included, or 0 if no span begins there. An unmatched
+// run of backticks is literal text rather than a span.
+func codeSpanAt(line string, index int) int {
+	if line[index] != '`' {
+		return 0
+	}
+	opening := leadingRun(line[index:], '`')
+	for scan := index + opening; scan < len(line); {
+		if line[scan] != '`' {
+			scan++
+			continue
+		}
+		run := leadingRun(line[scan:], '`')
+		if run == opening {
+			return scan + opening - index
+		}
+		scan += run
+	}
+	return 0
 }
 
 // leadingRun counts the leading repetitions of char in value.
