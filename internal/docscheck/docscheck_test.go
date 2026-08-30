@@ -217,7 +217,7 @@ func TestCorrectDocumentationIsNeverReported(t *testing.T) {
 
 	t.Run("a fence marker carrying an info string does not close the block", func(t *testing.T) {
 		// CommonMark closes a fence only on a marker followed by nothing
-		// but spaces, so the ```sh line is content. Ending the block
+		// but spaces or tabs, so the ```sh line is content. Ending the block
 		// there would put the example's dead link back into live prose
 		// and report the document for a link it only quotes.
 		requireClean(t, checkAll(t, map[string]string{
@@ -475,12 +475,13 @@ func TestDetectionIsNotDefeatedByShape(t *testing.T) {
 		requireOnlyReport(t, errs, "README.md:4", "docs/gone.md", "does not exist")
 	})
 
-	t.Run("a claim after a fence closed with trailing spaces is checked", func(t *testing.T) {
-		// CommonMark allows spaces after a closing marker. Requiring an
-		// exactly bare line would leave the fence open to the end of the
-		// file and blank every claim below it.
+	t.Run("a claim after a fence closed with trailing whitespace is checked", func(t *testing.T) {
+		// CommonMark allows spaces and tabs after a closing marker, and an
+		// editor stripping neither is ordinary. Requiring an exactly bare
+		// line would leave the fence open to the end of the file and blank
+		// every claim below it.
 		errs := checkAll(t, map[string]string{
-			"README.md": "# tracedoc\n\n```md\nexample\n```  \nSee [gone](docs/gone.md).\n",
+			"README.md": "# tracedoc\n\n```md\nexample\n``` \t\nSee [gone](docs/gone.md).\n",
 		})
 		requireOnlyReport(t, errs, "README.md:6", "docs/gone.md", "does not exist")
 	})

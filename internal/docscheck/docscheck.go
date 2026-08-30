@@ -715,8 +715,8 @@ func blankFencedCode(text string) []string {
 // the suffix following it, ends the block opened by fence.
 //
 // CommonMark lets an opening fence carry an info string but requires the
-// closing one to carry nothing but spaces, so a ```go line inside an open
-// block is content rather than its end. Treating it as the end would put
+// closing one to carry nothing but spaces or tabs, so a ```go line inside
+// an open block is content rather than its end. Treating it as the end would put
 // the rest of the block back into live prose, where the headings and links
 // an example holds are read as claims the document makes.
 func closesFence(fence, marker, suffix string) bool {
