@@ -70,6 +70,21 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Documentation checks over this repository's own Markdown, in
+  `internal/docscheck`, run by the existing test suite in both workflows
+  ([#11](https://github.com/sofired/tracedoc/issues/11)). The build now
+  fails on a relative link or `#anchor` that does not resolve, a
+  backticked repository path named in prose that does not exist, a
+  `CHANGELOG.md` with no dated section for the version
+  `cmd/tracedoc/main.go` reports, and self-check command lists that have
+  drifted apart between `AGENTS.md`, `.github/workflows/ci.yml`, and
+  `.github/workflows/release.yml`. Three false claims had previously
+  survived multiple merges — a dead anchor left by the `matrix` →
+  `tracedoc` rename, a reference to a deleted `workflows-staged`
+  directory, and a changelog section still marked unreleased three weeks
+  after the tag was published — and each is now reproduced as a failing
+  test. The checks are limited to claims that are mechanically false and
+  add no module dependency.
 - Entry-point coverage: an entry point counts as analysed only when one
   threat both crosses its trust boundary and travels one of its data flows.
   Matching either half alone is rejected as a false positive that would

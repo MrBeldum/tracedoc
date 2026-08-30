@@ -34,6 +34,11 @@ codebase.
 - Rendering must stay deterministic and injection-resistant; document
   content always flows through the escaping template functions.
 - `.github/workflows/` holds the CI and release workflows.
+- Documentation is gated, not advisory: `internal/docscheck` fails the
+  test suite on a dead internal link or anchor, on a repository path named
+  in prose that does not exist, on a changelog section still undated for
+  the released version, and on self-check command lists that have drifted
+  apart. See [Documentation checks](#documentation-checks).
 
 ## Validation
 
@@ -56,5 +61,29 @@ the affected `testdata/*.md` with the same render command without `-check`
 and commit the result, noting the output change in `CHANGELOG.md`.
 
 The "Self-check fixture documents" step in `.github/workflows/ci.yml` is
-the authoritative list of these commands; if the two diverge, CI is
-correct.
+the authoritative list of these commands. They are no longer allowed to
+diverge: `internal/docscheck` asserts that this block and both workflows
+run the same commands in the same order, so a change to one that misses
+the others fails the test suite.
+
+### Documentation checks
+
+`internal/docscheck` treats this repository's own Markdown as testable.
+The `go test` line above already runs it; to run only these checks, or to
+read a failure on its own:
+
+```sh
+go test ./internal/docscheck/
+```
+
+It fails the build when a relative Markdown link or `#anchor` does not
+resolve, when a backticked repository path named in prose does not exist,
+when `CHANGELOG.md` has no dated section for the version
+`cmd/tracedoc/main.go` reports, or when the self-check command lists
+above have drifted apart.
+
+These checks cover claims that are mechanically false, never writing
+quality. A claim about *behavior* — that a template anchors every entity,
+that a field rejects control characters — is beyond the reach of any
+documentation linter and belongs in a test next to the behavior it
+describes.
