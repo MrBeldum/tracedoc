@@ -1,4 +1,4 @@
-{{define "threat"}}<a id="{{lower .ID}}"></a>
+{{define "threat"}}<a id="{{anchor .ID}}"></a>
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Title}}</summary>
 
@@ -83,7 +83,7 @@
 
 {{if .Document.Assumptions}}| ID | Assumption | If it does not hold |
 | --- | --- | --- |
-{{range .Document.Assumptions}}| `{{.ID}}` | {{table .Statement}} | {{table .Effect}} |
+{{range .Document.Assumptions}}| <a id="{{anchor .ID}}"></a>`{{.ID}}` | {{table .Statement}} | {{table .Effect}} |
 {{end}}{{else}}No assumptions recorded.
 {{end}}
 ## Open questions
@@ -105,13 +105,13 @@
 
 | ID | Actor | Trust | Description |
 | --- | --- | --- | --- |
-{{range .Document.Actors}}| `{{.ID}}` | {{table .Name}} | {{table .Trust}} | {{table .Description}} |
+{{range .Document.Actors}}| <a id="{{anchor .ID}}"></a>`{{.ID}}` | {{table .Name}} | {{table .Trust}} | {{table .Description}} |
 {{end}}
 ## Architecture
 
 | ID | Component | Zone | Purpose | Evidence |
 | --- | --- | --- | --- | --- |
-{{range .Document.Components}}| `{{.ID}}` | {{table .Name}} | {{table .Zone}} | {{table .Purpose}} | {{table .Evidence}} |
+{{range .Document.Components}}| <a id="{{anchor .ID}}"></a>`{{.ID}}` | {{table .Name}} | {{table .Zone}} | {{table .Purpose}} | {{table .Evidence}} |
 {{end}}
 ### Diagrams
 
@@ -132,15 +132,15 @@
 
 | ID | Asset | Objective | Threats |
 | --- | --- | --- | ---: |
-{{range .Assets}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Name}} | {{table .Objective}} | {{len .Threats}} |
+{{range .Assets}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Name}} | {{table .Objective}} | {{len .Threats}} |
 {{end}}
-{{range .Assets}}<a id="{{lower .ID}}"></a>
+{{range .Assets}}<a id="{{anchor .ID}}"></a>
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Name}} ({{len .Threats}})</summary>
 
 {{prose .Description}}
 
-{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{anchor $threat.ID}}){{end}}
 
 </details>
 
@@ -149,9 +149,9 @@
 
 | ID | Boundary | Source | Destination | State | Threats |
 | --- | --- | --- | --- | --- | ---: |
-{{range .Boundaries}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Name}} | `{{.Source}}` | `{{.Destination}}` | {{table .ImplementationState}} | {{len .Threats}} |
+{{range .Boundaries}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Name}} | `{{.Source}}` | `{{.Destination}}` | {{table .ImplementationState}} | {{len .Threats}} |
 {{end}}
-{{range .Boundaries}}<a id="{{lower .ID}}"></a>
+{{range .Boundaries}}<a id="{{anchor .ID}}"></a>
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Name}} ({{len .Threats}})</summary>
 
@@ -173,14 +173,14 @@
 
 **Evidence:** {{prose .Evidence}}
 
-{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{anchor $threat.ID}}){{end}}
 
 </details>
 
 {{end}}
 ## Data flows
 
-{{range .Flows}}<a id="{{lower .ID}}"></a>
+{{range .Flows}}<a id="{{anchor .ID}}"></a>
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Name}} ({{len .Threats}})</summary>
 
@@ -192,7 +192,7 @@
 
 **Boundaries crossed:** {{inlineValues .Boundaries}}
 
-{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{anchor $threat.ID}}){{end}}
 
 </details>
 
@@ -201,9 +201,9 @@
 
 | ID | Surface | Reached by | Boundary | Flows | Threats |
 | --- | --- | --- | --- | --- | ---: |
-{{range .EntryPoints}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Surface}} | {{table .Reached}} | `{{.Boundary}}` | {{table (join .Flows ", ")}} | {{len .Threats}} |
+{{range .EntryPoints}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Surface}} | {{table .Reached}} | `{{.Boundary}}` | {{table (join .Flows ", ")}} | {{len .Threats}} |
 {{end}}
-{{range .EntryPoints}}<a id="{{lower .ID}}"></a>
+{{range .EntryPoints}}<a id="{{anchor .ID}}"></a>
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Surface}} ({{len .Threats}})</summary>
 
@@ -211,7 +211,7 @@
 
 **Evidence:** {{prose .Evidence}}
 
-{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{anchor $threat.ID}}){{end}}
 
 </details>
 
@@ -221,13 +221,13 @@
 
 | ID | Threat | Treatment | Owner | Assets | Boundaries |
 | --- | --- | --- | --- | --- | --- |
-{{range .Threats}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Title}} | `{{.Treatment}}` | {{owner .Owner}} | {{table (join .AssetLinks ", ")}} | {{table (join .BoundaryLinks ", ")}} |
+{{range .Threats}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Title}} | `{{.Treatment}}` | {{owner .Owner}} | {{table (join .AssetLinks ", ")}} | {{table (join .BoundaryLinks ", ")}} |
 {{end}}
 {{range .Threats}}{{template "threat" .}}{{end}}{{end}}## Controls
 
 | ID | Control | Status | Owner | Requirements | Decisions | Risks | Evidence | Threats |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-{{range .Controls}}| <a id="{{lower .ID}}"></a>`{{.ID}}` | {{table .Title}} | `{{.Status}}` | {{owner .Owner}} | {{table (join .RequirementLinks ", ")}} | {{table (join .DecisionLinks ", ")}} | {{table (join .RiskLinks ", ")}} | {{table (join .EvidenceLinks ", ")}} | {{table (join .Threats ", ")}} |
+{{range .Controls}}| <a id="{{anchor .ID}}"></a>`{{.ID}}` | {{table .Title}} | `{{.Status}}` | {{owner .Owner}} | {{table (join .RequirementLinks ", ")}} | {{table (join .DecisionLinks ", ")}} | {{table (join .RiskLinks ", ")}} | {{table (join .EvidenceLinks ", ")}} | {{table (join .Threats ", ")}} |
 {{end}}
 {{range .Controls}}<details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Title}}</summary>
@@ -243,25 +243,26 @@
 
 | ID | Evidence | Level | Status | Owner | Threats | Controls |
 | --- | --- | --- | --- | --- | --- | --- |
-{{range .Evidence}}| `{{.ID}}` | {{table .Title}} | `{{.Level}}` | `{{.Status}}` | {{owner .Owner}} | {{table (join .ThreatLinks ", ")}} | {{table (join .Controls ", ")}} |
+{{range .Evidence}}| <a id="{{anchor .ID}}"></a>`{{.ID}}` | {{table .Title}} | `{{.Level}}` | `{{.Status}}` | {{owner .Owner}} | {{table (join .ThreatLinks ", ")}} | {{table (join .Controls ", ")}} |
 {{end}}
 ## Decisions
 
 {{if .Decisions}}| ID | Decision | Status | Controls | Reference |
 | --- | --- | --- | --- | --- |
-{{range .Decisions}}| `{{.ID}}` | {{table .Title}} | `{{.Status}}` | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
+{{range .Decisions}}| <a id="{{anchor .ID}}"></a>`{{.ID}}` | {{table .Title}} | `{{.Status}}` | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
 {{end}}{{else}}No decisions recorded.
 {{end}}
 ## Risks and residual ownership
 
 {{if .Risks}}| ID | Risk | Threats | Controls | Reference |
 | --- | --- | --- | --- | --- |
-{{range .Risks}}| {{inlineCode .ID}} | {{table .Title}} | {{table (join .Threats ", ")}} | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
+{{range .Risks}}| <a id="{{anchor .ID}}"></a>{{inlineCode .ID}} | {{table .Title}} | {{table (join .Threats ", ")}} | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
 {{end}}{{else}}No risk records referenced.
 {{end}}
 ## Observability
 
-{{if .Document.Observability}}{{range .Document.Observability}}### {{prose .Surface}}
+{{if .Document.Observability}}{{range .Document.Observability}}<a id="{{anchor .ID}}"></a>
+### {{inlineCode .ID}} - {{prose .Surface}}
 
 **Required signals:**
 

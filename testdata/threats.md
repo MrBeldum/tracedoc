@@ -7,8 +7,8 @@
 - Status: `draft`
 - Accountable owner: @security-lead
 - Threats: **3**
-- Controls: **2**
-- Planned evidence: **2**
+- Controls: **3**
+- Planned evidence: **3**
 
 ## Summary
 
@@ -30,7 +30,7 @@ Architecture-level threat model for the example token service, covering credenti
 
 | ID | Assumption | If it does not hold |
 | --- | --- | --- |
-| `ASM-001` | Transport security terminates at the public edge and is correctly configured. | If it does not hold, every boundary guarantee that relies on channel confidentiality is void. |
+| <a id="asm-001"></a>`ASM-001` | Transport security terminates at the public edge and is correctly configured. | If it does not hold, every boundary guarantee that relies on channel confidentiality is void. |
 
 ## Open questions
 
@@ -53,16 +53,16 @@ Architecture-level threat model for the example token service, covering credenti
 
 | ID | Actor | Trust | Description |
 | --- | --- | --- | --- |
-| `ACTOR-001` | Anonymous client | untrusted | Any party that can reach the public token endpoint. |
-| `ACTOR-002` | Platform operator | partially trusted | Staff with host-level access to the application and restricted zones. |
+| <a id="actor-001"></a>`ACTOR-001` | Anonymous client | untrusted | Any party that can reach the public token endpoint. |
+| <a id="actor-002"></a>`ACTOR-002` | Platform operator | partially trusted | Staff with host-level access to the application and restricted zones. |
 
 ## Architecture
 
 | ID | Component | Zone | Purpose | Evidence |
 | --- | --- | --- | --- | --- |
-| `COMP-001` | Public edge proxy | public | Terminates transport security and forwards requests to the token service. | diagrams/data-flow.md |
-| `COMP-002` | Token service | application | Authenticates clients and issues signed tokens. | diagrams/data-flow.md |
-| `COMP-003` | Key store | restricted | Holds the private keys that sign issued tokens. | diagrams/data-flow.md |
+| <a id="comp-001"></a>`COMP-001` | Public edge proxy | public | Terminates transport security and forwards requests to the token service. | diagrams/data-flow.md |
+| <a id="comp-002"></a>`COMP-002` | Token service | application | Authenticates clients and issues signed tokens. | diagrams/data-flow.md |
+| <a id="comp-003"></a>`COMP-003` | Key store | restricted | Holds the private keys that sign issued tokens. | diagrams/data-flow.md |
 
 ### Diagrams
 
@@ -358,7 +358,7 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Data flows:** `DF-002`
 
-**Controls:** None recorded
+**Controls:** `CTRL-002`
 
 **Risks:** `R1`
 
@@ -403,9 +403,9 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Residual risk:** Clients that ignore transport errors remain exposed and are tracked as R2.
 
-**Existing controls:** None; discovery is not yet published.
+**Existing controls:** None in place; CTRL-003 is planned and discovery is not yet published.
 
-**Gaps:** No published requirement that discovery be refused over plaintext.
+**Gaps:** RFCX-001 requires metadata over TLS, but nothing enforces it while CTRL-003 remains planned.
 
 **Recommended mitigations:** Refuse to serve discovery metadata over an insecure channel.
 
@@ -419,11 +419,11 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Data flows:** `DF-001`
 
-**Controls:** `CTRL-002`
+**Controls:** `CTRL-003`
 
 **Risks:** `R2`
 
-**Planned evidence:** `EVD-002`
+**Planned evidence:** `EVD-003`
 
 </details>
 
@@ -432,7 +432,8 @@ Signing-key retrieval crossing into the restricted zone.
 | ID | Control | Status | Owner | Requirements | Decisions | Risks | Evidence | Threats |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | <a id="ctrl-001"></a>`CTRL-001` | Per-client authentication rate limiting | `planned` | @protocol-owner / M1 / Protocol / #10 | EXCORE-001 |  |  | EVD-001 | THRT-001 |
-| <a id="ctrl-002"></a>`CTRL-002` | Audited, identity-bound signing-key retrieval | `planned` | @platform-owner / M10 / Platform |  | ADR-102 | R1 | EVD-002 | THRT-003 |
+| <a id="ctrl-002"></a>`CTRL-002` | Audited, identity-bound signing-key retrieval | `planned` | @platform-owner / M10 / Platform |  | ADR-102 | R1 | EVD-002 | THRT-002 |
+| <a id="ctrl-003"></a>`CTRL-003` | Discovery metadata served over TLS only | `planned` | @platform-owner / M0 / Platform / #7 | RFCX-001 | ADR-101 | R2 | EVD-003 | THRT-003 |
 
 <details>
 <summary><code>CTRL-001</code> - Per-client authentication rate limiting</summary>
@@ -452,31 +453,42 @@ Restricts key retrieval to the token service identity and records every access.
 
 </details>
 
+<details>
+<summary><code>CTRL-003</code> - Discovery metadata served over TLS only</summary>
+
+Refuses to serve discovery metadata over an insecure channel rather than answering the request.
+
+**Implementation note:** Enforced at the public edge, where ADR-101 terminates transport security.
+
+</details>
+
 
 ## Planned evidence
 
 | ID | Evidence | Level | Status | Owner | Threats | Controls |
 | --- | --- | --- | --- | --- | --- | --- |
-| `EVD-001` | Token endpoint negative suite | `adversarial` | `planned` | @protocol-owner / M1 / Protocol / #10 | THRT-001 | CTRL-001 |
-| `EVD-002` | Key custody integration suite | `integration` | `deferred` | @platform-owner / M10 / Platform | THRT-002, THRT-003 | CTRL-002 |
+| <a id="evd-001"></a>`EVD-001` | Token endpoint negative suite | `adversarial` | `planned` | @protocol-owner / M1 / Protocol / #10 | THRT-001 | CTRL-001 |
+| <a id="evd-002"></a>`EVD-002` | Key custody integration suite | `integration` | `deferred` | @platform-owner / M10 / Platform | THRT-002 | CTRL-002 |
+| <a id="evd-003"></a>`EVD-003` | Discovery transport negative suite | `adversarial` | `planned` | @platform-owner / M0 / Platform / #7 | THRT-003 | CTRL-003 |
 
 ## Decisions
 
 | ID | Decision | Status | Controls | Reference |
 | --- | --- | --- | --- | --- |
-| `ADR-101` | Terminate transport security at the public edge | `accepted` |  | [../decisions/adr-101.md](../decisions/adr-101.md) |
-| `ADR-102` | Adopt dedicated key custody hardware | `proposed` | CTRL-002 | [https://decisions.example.org/example/adr-102](https://decisions.example.org/example/adr-102) |
+| <a id="adr-101"></a>`ADR-101` | Terminate transport security at the public edge | `accepted` | CTRL-003 | [../decisions/adr-101.md](../decisions/adr-101.md) |
+| <a id="adr-102"></a>`ADR-102` | Adopt dedicated key custody hardware | `proposed` | CTRL-002 | [https://decisions.example.org/example/adr-102](https://decisions.example.org/example/adr-102) |
 
 ## Risks and residual ownership
 
 | ID | Risk | Threats | Controls | Reference |
 | --- | --- | --- | --- | --- |
-| `R1` | Insider access to signing key material | THRT-002 | CTRL-002 | [../plan.md](../plan.md) |
-| `R2` | Discovery metadata served over an insecure channel | THRT-003 |  | [../plan.md](../plan.md) |
+| <a id="r1"></a>`R1` | Insider access to signing key material | THRT-002 | CTRL-002 | [../plan.md](../plan.md) |
+| <a id="r2"></a>`R2` | Discovery metadata served over an insecure channel | THRT-003 | CTRL-003 | [../plan.md](../plan.md) |
 
 ## Observability
 
-### Token endpoint
+<a id="obs-001"></a>
+### `OBS-001` - Token endpoint
 
 **Required signals:**
 

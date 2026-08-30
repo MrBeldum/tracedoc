@@ -90,6 +90,7 @@ func definesRoot(parsed *template.Template) bool {
 
 func templateFuncs(options Options) template.FuncMap {
 	return template.FuncMap{
+		"anchor":       AnchorID,
 		"htmlText":     HTMLText,
 		"inlineCode":   func(value string) string { return InlineCode(CodeText(value)) },
 		"inlineValues": InlineValues,
@@ -103,6 +104,19 @@ func templateFuncs(options Options) template.FuncMap {
 		"prose":           ProseText,
 		"table":           TableText,
 	}
+}
+
+// AnchorID renders value as the identifier of a rendered companion anchor.
+//
+// Every declared record is anchored under its own identifier, and identifiers
+// are unique across the whole document, so one anchor names one record. Most
+// identifier formats are schema-owned and already exclude every character that
+// matters here; risk identifiers follow the consumer's own pattern, so the
+// value is escaped for an HTML attribute rather than trusted. An anchor
+// destination in the same document is written with the same function, so the
+// two can never disagree.
+func AnchorID(value string) string {
+	return HTMLText(strings.ToLower(value))
 }
 
 // TableText escapes value for a Markdown table cell.

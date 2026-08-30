@@ -147,13 +147,18 @@ type validator struct {
 	observations *idSet
 	threats      *idSet
 
-	// allIDs is the document-wide identifier namespace. Every anchored
-	// entity shares one anchor space in the rendered companion, so an ID
-	// reused across two collections would silently collapse two anchors
-	// into one. Distinct per-type prefixes make that impossible between
-	// schema-owned types; risk IDs follow a consumer pattern that this
-	// check is the only guard against.
-	allIDs     map[string]struct{}
+	// allIDs is the document-wide identifier namespace, keyed by the
+	// anchor form of each ID and holding the ID as first written. Every
+	// declared entity shares one anchor space in the rendered companion,
+	// so an ID reused across two collections would silently collapse two
+	// anchors into one. Distinct per-type prefixes make that impossible
+	// between schema-owned types; risk IDs follow a consumer pattern that
+	// this check is the only guard against.
+	//
+	// Anchors are case-folded, so the key is too: a consumer pattern that
+	// admits both "R1" and "r1" yields two distinct IDs that address one
+	// anchor, which is the collision this check exists to prevent.
+	allIDs     map[string]string
 	retiredIDs map[string]struct{}
 }
 
@@ -177,7 +182,7 @@ func Validate(doc Document, policy Policy, requirements *RequirementIndex) check
 		evidence:     newIDSet("planned evidence", len(doc.PlannedEvidence)),
 		observations: newIDSet("observation", len(doc.Observability)),
 		threats:      newIDSet("threat", len(doc.Threats)),
-		allIDs:       make(map[string]struct{}),
+		allIDs:       make(map[string]string),
 		retiredIDs:   make(map[string]struct{}, len(doc.Supersessions)),
 	}
 	v.document(doc)
@@ -341,9 +346,18 @@ func (v *validator) insert(location, id string, set *idSet) {
 		v.Addf(location, "duplicate %s ID %q", set.noun, id)
 		return
 	}
-	if !v.InsertUnique(v.allIDs, id) {
-		v.Addf(location, "ID %q is already declared by another collection", id)
+	anchor := strings.ToLower(id)
+	if declared, ok := v.allIDs[anchor]; ok {
+		if declared == id {
+			v.Addf(location, "ID %q is already declared by another collection", id)
+		} else {
+			v.Addf(location,
+				"ID %q differs from %q only by case, and the two share one anchor in the rendered companion",
+				id, declared)
+		}
+		return
 	}
+	v.allIDs[anchor] = id
 }
 
 func (v *validator) requireArray(location string, missing bool) {

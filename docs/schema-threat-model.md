@@ -74,10 +74,16 @@ part of the threat-ID exclusion; document-wide uniqueness is what keeps a
 risk ID from colliding with anything else.
 
 Identifiers are unique **across the whole document**, not only within their
-collection. The rendered companion anchors every entity in one namespace, so
-a reused identifier would silently collapse two anchors into one. Distinct
-prefixes make a collision impossible between schema-owned collections; the
-document-wide check is what governs consumer-patterned risk IDs.
+collection. The rendered companion anchors every declared record in one
+namespace, so a reused identifier would silently collapse two anchors into
+one. Distinct prefixes make a collision impossible between schema-owned
+collections; the document-wide check is what governs consumer-patterned risk
+IDs.
+
+Anchors are case-folded, so uniqueness is too: `R1` and `r1` are rejected as
+a collision even though they are different strings. Only a risk pattern can
+express this, because every other identifier format is schema-owned and
+uppercase.
 
 ## References
 

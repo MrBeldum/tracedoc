@@ -1,4 +1,4 @@
-{{define "requirement"}}<a id="{{lower .ID}}"></a>
+{{define "requirement"}}<a id="{{anchor .ID}}"></a>
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Title}}</summary>
 
@@ -62,7 +62,7 @@ Ownership routes requirements through durable responsibility classifications rat
 <details>
 <summary><code>{{htmlText .Milestone}}</code> - {{htmlText .Workstream}}{{if .Issue}} - <a href="{{htmlText (issueURL .Issue)}}">{{htmlText .Issue}}</a>{{end}} ({{len .Requirements}})</summary>
 
-{{range $index, $requirement := .Requirements}}{{if $index}}, {{end}}[`{{$requirement.ID}}`](#{{lower $requirement.ID}}){{end}}
+{{range $index, $requirement := .Requirements}}{{if $index}}, {{end}}[`{{$requirement.ID}}`](#{{anchor $requirement.ID}}){{end}}
 
 </details>
 
@@ -73,23 +73,23 @@ These requirements are intentionally deferred or not applicable. Their detailed 
 
 | ID | Requirement | Disposition | Owner | Rationale |
 | --- | --- | --- | --- | --- |
-{{range .BoundaryRequirements}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table .ApplicabilityRationale}} |
+{{range .BoundaryRequirements}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table .ApplicabilityRationale}} |
 {{end}}
 ## Standards index
 
 | Source | Requirements |
 | --- | ---: |
-{{range .Standards}}| [`{{.Standard.Key}}`](#standard-{{lower .Standard.Key}}) - {{table .Standard.Title}} | {{len .Requirements}} |
+{{range .Standards}}| [`{{.Standard.Key}}`](#standard-{{anchor .Standard.Key}}) - {{table .Standard.Title}} | {{len .Requirements}} |
 {{end}}
 {{range .Standards}}{{if not .First}}
-{{end}}<a id="standard-{{lower .Standard.Key}}"></a>
+{{end}}<a id="standard-{{anchor .Standard.Key}}"></a>
 ## {{.Standard.Key}}: {{prose .Standard.Title}}
 
 [Primary source]({{linkDestination .Standard.URI}})
 
 | ID | Requirement | Applicability | Owner | Verification | Status |
 | --- | --- | --- | --- | --- | --- |
-{{range .Requirements}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table (join .PlannedVerification.Levels ", ")}} | `{{.EvidenceStatus}}` |
+{{range .Requirements}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table (join .PlannedVerification.Levels ", ")}} | `{{.EvidenceStatus}}` |
 {{end}}
 {{range .Requirements}}{{template "requirement" .}}{{end}}{{end}}## Supersessions
 

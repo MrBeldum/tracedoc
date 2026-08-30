@@ -76,6 +76,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   certify an unreviewed surface.
 - Document-wide identifier uniqueness across every declared collection, so
   a reused ID cannot collapse two anchors in the rendered companion.
+  Uniqueness is case-folded, because anchors are: `R1` and `r1` are two
+  identifiers addressing one anchor. Only a consumer `risk_pattern` can
+  express this; every other identifier format is schema-owned and
+  uppercase.
+- An `anchor` template function, and an anchor on every declared record in
+  the rendered companion. Assumptions, components, actors, decisions,
+  risks, planned evidence, and observability records are now anchored
+  alongside the collections that already were, so each is addressable by
+  its identifier. `anchor` case-folds and escapes for an HTML attribute,
+  which `risks[].id` needs because it is consumer-patterned.
+- Observability records now render their `OBS-` identifier, which the
+  companion previously validated but never showed.
 - Provenance-checked references for diagrams, decisions, and risks: exactly
   one of a repository-relative `path` or an HTTPS `url` on a host declared
   in the new `reference_hosts` allowlist. Diagram generation and

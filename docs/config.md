@@ -178,15 +178,21 @@ receives:
   `.TreatmentCounts`, `.Diagrams`, `.Assets`, `.Boundaries`, `.Flows`,
   `.EntryPoints`, `.Decisions`, `.Risks`, `.Controls`, `.Evidence`,
   `.Sections`; and
-- the template functions `htmlText`, `inlineCode`, `inlineValues`,
-  `issueURL`, `join`, `linkDestination`, `linkLabel`, `lower`, `owner`,
-  `prose`, and `table`, plus `add1` for threat models (used to number
-  ordered abuse paths and data-flow sequences from one).
+- the template functions `anchor`, `htmlText`, `inlineCode`,
+  `inlineValues`, `issueURL`, `join`, `linkDestination`, `linkLabel`,
+  `lower`, `owner`, `prose`, and `table`, plus `add1` for threat models
+  (used to number ordered abuse paths and data-flow sequences from one).
 
 Free-text document fields must always pass through the escaping functions
 (`htmlText`, `prose`, `table`, `linkLabel`, `inlineValues`,
-`linkDestination`, `inlineCode`); emitting document fields raw lets
-document authors inject Markdown or HTML into the rendered output.
+`linkDestination`, `inlineCode`, `anchor`); emitting document fields raw
+lets document authors inject Markdown or HTML into the rendered output.
+
+`anchor` is the one to use for an anchor identifier — both the `id`
+attribute and a same-document `#` destination. It case-folds, so the two
+agree by construction, and escapes for an HTML attribute, which matters
+because `risks[].id` is consumer-patterned. Do not build an anchor out of
+`lower`: it does not escape.
 
 A value may be emitted bare **only** when its character set is fixed by
 something the document author cannot change. That covers stable ID fields
@@ -202,9 +208,9 @@ It does **not** cover a value shaped by a consumer-supplied pattern.
 `risk_pattern` is checked only for anchoring and length, so a risk ID can
 legitimately contain backticks, pipes, or brackets; the default template
 therefore routes `risks[].id` through `inlineCode` like any other free-form
-value. Treat every consumer-patterned field this way: the pattern is
-policy, not a character-set guarantee. Anything else emitted raw is an
-injection risk. Section
+value, and through `anchor` where it becomes an anchor identifier. Treat
+every consumer-patterned field this way: the pattern is policy, not a
+character-set guarantee. Anything else emitted raw is an injection risk. Section
 layout and precomputed-section membership may change in minor releases;
 pin the tool version to keep byte-identical output, and re-verify consumer
 templates when updating. Every escaping function also neutralizes

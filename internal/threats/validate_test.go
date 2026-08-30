@@ -712,6 +712,49 @@ func TestCrossCollectionIDCollisionIsRejected(t *testing.T) {
 	}
 }
 
+// TestCaseOnlyIDCollisionIsRejected covers the half of the anchor namespace
+// exact-match uniqueness misses. Anchors are case-folded, so "R1" and "r1"
+// are two identifiers addressing one anchor — the silent collapse the
+// document-wide check exists to prevent, reachable through any consumer risk
+// pattern that admits both cases. Only risk IDs can express this: every other
+// collection's format is schema-owned and uppercase.
+func TestCaseOnlyIDCollisionIsRejected(t *testing.T) {
+	permissive := fixturePolicy(t)
+	permissive.Risk = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*$`)
+
+	doc := fixtureDocument(t)
+	doc.Risks[1].ID = "r1"
+	// Keep every link consistent so the collision is the only failure.
+	controlByID(t, &doc, "CTRL-003").RiskLinks = []string{"r1"}
+	threatByID(t, &doc, "THRT-003").RiskLinks = []string{"r1"}
+
+	errs := threats.Validate(doc, permissive, fixtureIndex())
+	if errs == nil {
+		t.Fatal("expected a case-only collision to be rejected")
+	}
+	want := `ID "r1" differs from "R1" only by case`
+	if !strings.Contains(errs.Error(), want) {
+		t.Fatalf("expected %q, got:\n%s", want, errs)
+	}
+}
+
+// TestCaseDistinctIDsAreAccepted is the counterpart: the folded check must
+// not reject identifiers that merely share a prefix or differ by more than
+// case, which would break every consumer risk pattern.
+func TestCaseDistinctIDsAreAccepted(t *testing.T) {
+	permissive := fixturePolicy(t)
+	permissive.Risk = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*$`)
+
+	doc := fixtureDocument(t)
+	doc.Risks[1].ID = "r10"
+	controlByID(t, &doc, "CTRL-003").RiskLinks = []string{"r10"}
+	threatByID(t, &doc, "THRT-003").RiskLinks = []string{"r10"}
+
+	if errs := threats.Validate(doc, permissive, fixtureIndex()); errs != nil {
+		t.Fatalf("case-distinct IDs should validate, got:\n%s", errs)
+	}
+}
+
 // TestCoverageRules is the acceptance coverage for the declared-entity
 // rules: every collection the switches govern must be rejected when a
 // member is declared but never analysed, and accepted once the switch is
@@ -752,7 +795,7 @@ func TestCoverageRules(t *testing.T) {
 		},
 		{
 			name:    "unanalysed control",
-			want:    `controls: control "CTRL-002" is declared but never analysed`,
+			want:    `controls: control "CTRL-003" is declared but never analysed`,
 			disable: func(c *threats.Coverage) { c.Controls = false },
 			mutate: func(doc *threats.Document) {
 				threatByID(t, doc, "THRT-003").ControlLinks = []string{"CTRL-001"}

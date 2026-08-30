@@ -302,24 +302,39 @@ func TestViewGrouping(t *testing.T) {
 func TestReverseTraceabilityGrouping(t *testing.T) {
 	view := newView(fixtureDocument(t), fixtureOptions())
 
-	if len(view.Controls) != 2 || len(view.Controls[0].Threats) != 1 {
+	if len(view.Controls) != 3 || len(view.Controls[0].Threats) != 1 {
 		t.Fatalf("unexpected control grouping: %#v", view.Controls)
 	}
-	// ADR-102 is cited by CTRL-002; ADR-101 is cited by nothing.
+	// ADR-101 is cited by CTRL-003; ADR-102 by CTRL-002.
 	if len(view.Decisions) != 2 {
 		t.Fatalf("unexpected decision count: %#v", view.Decisions)
 	}
-	if len(view.Decisions[0].Controls) != 0 {
-		t.Errorf("ADR-101 should have no citing control, got %#v", view.Decisions[0].Controls)
+	if len(view.Decisions[0].Controls) != 1 || view.Decisions[0].Controls[0] != "CTRL-003" {
+		t.Errorf("ADR-101 should be cited by CTRL-003, got %#v", view.Decisions[0].Controls)
 	}
 	if len(view.Decisions[1].Controls) != 1 || view.Decisions[1].Controls[0] != "CTRL-002" {
 		t.Errorf("ADR-102 should be cited by CTRL-002, got %#v", view.Decisions[1].Controls)
 	}
-	if len(view.Evidence) != 2 || len(view.Evidence[0].Controls) != 1 {
+	if len(view.Evidence) != 3 || len(view.Evidence[0].Controls) != 1 {
 		t.Fatalf("unexpected evidence grouping: %#v", view.Evidence)
 	}
 	if len(view.Risks) != 2 || len(view.Risks[0].Threats) != 1 {
 		t.Fatalf("unexpected risk grouping: %#v", view.Risks)
+	}
+
+	// Every fixture decision is now cited, so the uncited case is exercised
+	// here rather than left to the fixture: a record no control references
+	// must group to an empty list, never to a nil the template would range
+	// over differently.
+	uncited := fixtureDocument(t)
+	for i := range uncited.Controls {
+		uncited.Controls[i].DecisionLinks = nil
+	}
+	for _, decision := range newView(uncited, fixtureOptions()).Decisions {
+		if len(decision.Controls) != 0 {
+			t.Errorf("decision %s should have no citing control, got %#v",
+				decision.ID, decision.Controls)
+		}
 	}
 }
 
@@ -331,5 +346,114 @@ func TestReferenceTargetPrefersPath(t *testing.T) {
 	}
 	if got := referenceTarget(threatsdoc.Reference{URL: "https://example.org/a"}); got != "https://example.org/a" {
 		t.Errorf("url reference: got %q", got)
+	}
+}
+
+// TestEveryDeclaredEntityIsAnchored pins the guarantee docs/schema-threat-model.md
+// states and that document-wide identifier uniqueness exists to protect: the
+// companion anchors every declared entity in one namespace. The rule was
+// documented while seven collections went unanchored, so the claim is asserted
+// here rather than left to review. A collection added to the schema without an
+// anchor fails this test as soon as the fixture declares one.
+func TestEveryDeclaredEntityIsAnchored(t *testing.T) {
+	doc := fixtureDocument(t)
+
+	ids := map[string]string{}
+	add := func(collection, id string) {
+		ids[id] = collection
+	}
+	for _, item := range doc.Assumptions {
+		add("assumptions", item.ID)
+	}
+	for _, item := range doc.Components {
+		add("components", item.ID)
+	}
+	for _, item := range doc.Actors {
+		add("actors", item.ID)
+	}
+	for _, item := range doc.Assets {
+		add("assets", item.ID)
+	}
+	for _, item := range doc.TrustBoundaries {
+		add("trust_boundaries", item.ID)
+	}
+	for _, item := range doc.DataFlows {
+		add("data_flows", item.ID)
+	}
+	for _, item := range doc.EntryPoints {
+		add("entry_points", item.ID)
+	}
+	for _, item := range doc.Decisions {
+		add("decisions", item.ID)
+	}
+	for _, item := range doc.Risks {
+		add("risks", item.ID)
+	}
+	for _, item := range doc.Controls {
+		add("controls", item.ID)
+	}
+	for _, item := range doc.PlannedEvidence {
+		add("planned_evidence", item.ID)
+	}
+	for _, item := range doc.Observability {
+		add("observability", item.ID)
+	}
+	for _, item := range doc.Threats {
+		add("threats", item.ID)
+	}
+
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render threat model: %v", err)
+	}
+
+	// The fixture is the consumer-neutral document that exercises every
+	// record type, so an unpopulated collection means the fixture regressed,
+	// not that the collection is exempt.
+	const collections = 13
+	if seen := len(collectionsOf(ids)); seen != collections {
+		t.Fatalf("fixture declares %d collections, want %d", seen, collections)
+	}
+
+	for id, collection := range ids {
+		anchor := `<a id="` + strings.ToLower(id) + `"></a>`
+		if !strings.Contains(rendered, anchor) {
+			t.Errorf("%s ID %q is not anchored in the rendered companion", collection, id)
+		}
+	}
+}
+
+func collectionsOf(ids map[string]string) map[string]struct{} {
+	seen := map[string]struct{}{}
+	for _, collection := range ids {
+		seen[collection] = struct{}{}
+	}
+	return seen
+}
+
+// TestRiskIDAnchorsAreEscaped covers the sink anchoring the risk collection
+// introduced. Risk IDs are the one identifier format the consumer's own
+// pattern defines, so anchoring them puts consumer-controlled text inside an
+// HTML attribute; the pattern is checked for anchoring and length only, so it
+// can admit a quote. Escaping keeps the value inside the attribute it was
+// written into.
+func TestRiskIDAnchorsAreEscaped(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Risks[0].ID = `R1"><script>alert(1)</script><a x="`
+
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render risk identifiers: %v", err)
+	}
+
+	// The ID also appears in the row as a code span, where the raw markup is
+	// inert and already covered by TestRiskIDsAreEscaped. What must not exist
+	// is the attribute closing early and the rest becoming live markup.
+	if strings.Contains(rendered, `<a id="r1">`) {
+		t.Error("hostile risk ID closed its anchor attribute early")
+	}
+	const anchor = `<a id="r1&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;a x=&#34;"></a>`
+	if !strings.Contains(rendered, anchor) {
+		t.Errorf("risk anchor is not escaped as expected; rendered:\n%s", rendered)
 	}
 }
