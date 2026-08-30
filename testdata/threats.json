@@ -3,74 +3,459 @@
   "schema_version": 1,
   "document_version": "0.1.0",
   "last_reviewed": "2026-07-31",
+  "status": "draft",
+  "owner": "@security-lead",
+  "summary": "Architecture-level threat model for the example token service, covering credential handling, token issuance, and signing-key custody.",
+  "scope": {
+    "in_scope": [
+      "The public token endpoint and its request path.",
+      "Signing-key storage and retrieval by the token service."
+    ],
+    "out_of_scope": [
+      "Downstream resource servers that consume issued tokens.",
+      "Physical security of the hosting facility."
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "ASM-001",
+      "statement": "Transport security terminates at the public edge and is correctly configured.",
+      "effect": "If it does not hold, every boundary guarantee that relies on channel confidentiality is void."
+    }
+  ],
+  "open_questions": [
+    "Whether dedicated key custody hardware lands before the first production release."
+  ],
+  "diagrams": [
+    {
+      "caption": "Data-flow and trust-boundary overview",
+      "path": "diagrams/data-flow.md"
+    },
+    {
+      "caption": "Token issuance sequence",
+      "url": "https://diagrams.example.org/example/token-issuance.svg"
+    }
+  ],
+  "components": [
+    {
+      "id": "COMP-001",
+      "name": "Public edge proxy",
+      "zone": "public",
+      "purpose": "Terminates transport security and forwards requests to the token service.",
+      "evidence": "diagrams/data-flow.md"
+    },
+    {
+      "id": "COMP-002",
+      "name": "Token service",
+      "zone": "application",
+      "purpose": "Authenticates clients and issues signed tokens.",
+      "evidence": "diagrams/data-flow.md"
+    },
+    {
+      "id": "COMP-003",
+      "name": "Key store",
+      "zone": "restricted",
+      "purpose": "Holds the private keys that sign issued tokens.",
+      "evidence": "diagrams/data-flow.md"
+    }
+  ],
+  "actors": [
+    {
+      "id": "ACTOR-001",
+      "name": "Anonymous client",
+      "trust": "untrusted",
+      "description": "Any party that can reach the public token endpoint."
+    },
+    {
+      "id": "ACTOR-002",
+      "name": "Platform operator",
+      "trust": "partially trusted",
+      "description": "Staff with host-level access to the application and restricted zones."
+    }
+  ],
+  "attacker_model": {
+    "capabilities": [
+      "Send arbitrary requests to any publicly reachable endpoint.",
+      "Replay credentials obtained from an unrelated breach.",
+      "Observe traffic on the public network."
+    ],
+    "non_capabilities": [
+      "Break correctly configured transport security.",
+      "Obtain physical access to the hosting facility."
+    ]
+  },
   "assets": [
     {
       "id": "AST-001",
       "name": "Client credentials",
-      "description": "Registered client secrets and authentication material."
+      "description": "Registered client secrets and authentication material.",
+      "objective": "Confidentiality and resistance to offline guessing."
     },
     {
       "id": "AST-002",
       "name": "Token signing keys",
-      "description": "Private keys that sign issued tokens."
+      "description": "Private keys that sign issued tokens.",
+      "objective": "Confidentiality and non-repudiation of issued tokens."
+    },
+    {
+      "id": "AST-003",
+      "name": "Discovery metadata",
+      "description": "The published document naming the token endpoint and its keys.",
+      "objective": "Integrity and authenticity for every client that reads it."
     }
   ],
   "trust_boundaries": [
     {
       "id": "TB-001",
       "name": "Public network to token endpoint",
-      "description": "Requests crossing from the public network into the token service."
+      "description": "Requests crossing from the public network into the token service.",
+      "source": "COMP-001",
+      "destination": "COMP-002",
+      "data": ["Client credentials", "Token requests"],
+      "channels": ["HTTPS"],
+      "security_guarantees": [
+        "Client credentials are never accepted over an insecure channel.",
+        "Authentication failures are rate limited per client."
+      ],
+      "validation": [
+        "Negative tests assert that plaintext requests are rejected."
+      ],
+      "implementation_state": "planned",
+      "evidence": "diagrams/data-flow.md"
+    },
+    {
+      "id": "TB-002",
+      "name": "Token service to key store",
+      "description": "Signing-key retrieval crossing into the restricted zone.",
+      "source": "COMP-002",
+      "destination": "COMP-003",
+      "data": ["Signing key material"],
+      "channels": ["Mutually authenticated TLS"],
+      "security_guarantees": [
+        "Only the token service identity may retrieve signing keys.",
+        "Key retrieval is audited."
+      ],
+      "validation": [
+        "Integration tests assert that an unauthenticated caller is refused."
+      ],
+      "implementation_state": "partially implemented",
+      "evidence": "diagrams/data-flow.md"
+    }
+  ],
+  "data_flows": [
+    {
+      "id": "DF-001",
+      "name": "Token issuance",
+      "sequence": [
+        "Client presents credentials to the public edge proxy.",
+        "Proxy forwards the authenticated request to the token service.",
+        "Token service validates the credentials and issues a signed token."
+      ],
+      "boundaries": ["TB-001", "TB-002"],
+      "data": ["Client credentials", "Issued tokens"]
+    },
+    {
+      "id": "DF-002",
+      "name": "Signing-key retrieval",
+      "sequence": [
+        "Token service requests the active signing key.",
+        "Key store authorises the caller and returns the key material."
+      ],
+      "boundaries": ["TB-002"],
+      "data": ["Signing key material"]
+    },
+    {
+      "id": "DF-003",
+      "name": "Discovery metadata retrieval",
+      "sequence": [
+        "Client requests the discovery document from the public edge proxy.",
+        "Proxy returns metadata naming the token endpoint and its keys.",
+        "Client configures itself from the returned metadata."
+      ],
+      "boundaries": ["TB-001"],
+      "data": ["Discovery metadata"]
+    }
+  ],
+  "entry_points": [
+    {
+      "id": "EP-001",
+      "surface": "POST /token",
+      "reached": "Directly from the public network.",
+      "boundary": "TB-001",
+      "flows": ["DF-001"],
+      "notes": "Unauthenticated by definition: it is where credentials are first presented.",
+      "evidence": "diagrams/data-flow.md"
+    },
+    {
+      "id": "EP-002",
+      "surface": "Key store retrieval API",
+      "reached": "From the token service inside the application zone.",
+      "boundary": "TB-002",
+      "flows": ["DF-002"],
+      "notes": "Reachable only after a foothold in the application zone.",
+      "evidence": "diagrams/data-flow.md"
+    },
+    {
+      "id": "EP-003",
+      "surface": "GET /.well-known/openid-configuration",
+      "reached": "Directly from the public network, before any credential is presented.",
+      "boundary": "TB-001",
+      "flows": ["DF-003"],
+      "notes": "Read by clients during configuration, so tampering here steers every later request.",
+      "evidence": "diagrams/data-flow.md"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "ADR-101",
+      "title": "Terminate transport security at the public edge",
+      "status": "accepted",
+      "path": "../decisions/adr-101.md"
+    },
+    {
+      "id": "ADR-102",
+      "title": "Adopt dedicated key custody hardware",
+      "status": "proposed",
+      "url": "https://decisions.example.org/example/adr-102"
+    }
+  ],
+  "risks": [
+    {
+      "id": "R1",
+      "title": "Insider access to signing key material",
+      "path": "../plan.md"
+    },
+    {
+      "id": "R2",
+      "title": "Discovery metadata served over an insecure channel",
+      "path": "../plan.md"
+    }
+  ],
+  "controls": [
+    {
+      "id": "CTRL-001",
+      "title": "Per-client authentication rate limiting",
+      "description": "Bounds the rate of authentication attempts per registered client.",
+      "status": "planned",
+      "owner": {
+        "principal": "@protocol-owner",
+        "milestone": "M1",
+        "issue": "#10",
+        "workstream": "Protocol"
+      },
+      "requirement_links": ["EXCORE-001"],
+      "decision_links": [],
+      "risk_links": [],
+      "evidence_links": ["EVD-001"],
+      "implementation_note": "Enforced at the token service rather than the edge so it survives a proxy bypass."
+    },
+    {
+      "id": "CTRL-002",
+      "title": "Audited, identity-bound signing-key retrieval",
+      "description": "Restricts key retrieval to the token service identity and records every access.",
+      "status": "planned",
+      "owner": {
+        "principal": "@platform-owner",
+        "milestone": "M10",
+        "issue": null,
+        "workstream": "Platform"
+      },
+      "requirement_links": [],
+      "decision_links": ["ADR-102"],
+      "risk_links": ["R1"],
+      "evidence_links": ["EVD-002"],
+      "implementation_note": "Depends on the key custody decision recorded in ADR-102."
+    },
+    {
+      "id": "CTRL-003",
+      "title": "Discovery metadata served over TLS only",
+      "description": "Refuses to serve discovery metadata over an insecure channel rather than answering the request.",
+      "status": "planned",
+      "owner": {
+        "principal": "@platform-owner",
+        "milestone": "M0",
+        "issue": "#7",
+        "workstream": "Platform"
+      },
+      "requirement_links": ["RFCX-001"],
+      "decision_links": ["ADR-101"],
+      "risk_links": ["R2"],
+      "evidence_links": ["EVD-003"],
+      "implementation_note": "Enforced at the public edge, where ADR-101 terminates transport security. Server-side only: an on-path attacker can answer a plaintext request before it reaches the edge, so this bounds exposure rather than removing it, and R2 stays open until clients refuse plaintext discovery."
+    }
+  ],
+  "planned_evidence": [
+    {
+      "id": "EVD-001",
+      "title": "Token endpoint negative suite",
+      "level": "adversarial",
+      "status": "planned",
+      "description": "Exercises credential replay and rate-limit exhaustion against the token endpoint.",
+      "owner": {
+        "principal": "@protocol-owner",
+        "milestone": "M1",
+        "issue": "#10",
+        "workstream": "Protocol"
+      },
+      "threat_links": ["THRT-001"]
+    },
+    {
+      "id": "EVD-002",
+      "title": "Key custody integration suite",
+      "level": "integration",
+      "status": "deferred",
+      "description": "Asserts that unauthorised callers cannot retrieve signing keys and that access is audited.",
+      "owner": {
+        "principal": "@platform-owner",
+        "milestone": "M10",
+        "issue": null,
+        "workstream": "Platform"
+      },
+      "threat_links": ["THRT-002"]
+    },
+    {
+      "id": "EVD-003",
+      "title": "Discovery transport negative suite",
+      "level": "adversarial",
+      "status": "planned",
+      "description": "Asserts that a plaintext discovery request is refused rather than answered with metadata.",
+      "owner": {
+        "principal": "@platform-owner",
+        "milestone": "M0",
+        "issue": "#7",
+        "workstream": "Platform"
+      },
+      "threat_links": ["THRT-003"]
+    }
+  ],
+  "observability": [
+    {
+      "id": "OBS-001",
+      "surface": "Token endpoint",
+      "signals": [
+        "Authentication failure count per client.",
+        "Rate-limit rejection count per client."
+      ],
+      "redaction": [
+        "Client secrets must never be logged.",
+        "Issued token values must never be logged."
+      ],
+      "alert_condition": "Authentication failures for one client exceed the configured threshold within five minutes.",
+      "control_links": ["CTRL-001"]
     }
   ],
   "threats": [
     {
       "id": "THRT-001",
       "title": "Credential stuffing against the token endpoint",
-      "description": "An attacker replays leaked client credentials to obtain tokens.",
-      "severity": "critical",
-      "disposition": "mitigated",
-      "affected_assets": ["AST-001"],
-      "trust_boundaries": ["TB-001"],
-      "owner": { "milestone": "M1", "issue": "#10", "workstream": "Protocol" },
-      "mitigations": {
-        "adrs": [],
-        "requirements": ["EXCORE-001"],
-        "tests": ["token endpoint negative suite"],
-        "risks": []
-      }
+      "source": "An unauthenticated party on the public network.",
+      "prerequisites": "Possession of credentials leaked from an unrelated breach.",
+      "action": "Replay leaked client credentials against the token endpoint until one succeeds.",
+      "impact": "Issuance of valid tokens to an attacker-controlled client.",
+      "abuse_path": [
+        "Obtain a credential dump from an unrelated breach.",
+        "Enumerate the public token endpoint for accepted client identifiers.",
+        "Replay each credential until the endpoint issues a token."
+      ],
+      "likelihood": "high",
+      "likelihood_rationale": "The endpoint is publicly reachable and credential dumps are widely available.",
+      "severity": "high",
+      "impact_rationale": "A successful replay yields a valid token indistinguishable from a legitimate one.",
+      "priority": "critical",
+      "treatment": "mitigate",
+      "owner": {
+        "principal": "@protocol-owner",
+        "milestone": "M1",
+        "issue": "#10",
+        "workstream": "Protocol"
+      },
+      "residual_risk": "Low-rate distributed replay remains possible until anomaly detection lands.",
+      "existing_controls": "None; the endpoint is not yet built.",
+      "gaps": "No rate limiting and no credential-breach screening.",
+      "recommended_mitigations": "Per-client rate limiting plus screening against known-breached credentials.",
+      "detection_ideas": "Alert on authentication failure rate per client identifier.",
+      "actor_links": ["ACTOR-001"],
+      "asset_links": ["AST-001"],
+      "boundary_links": ["TB-001"],
+      "flow_links": ["DF-001"],
+      "control_links": ["CTRL-001"],
+      "risk_links": [],
+      "evidence_links": ["EVD-001"]
     },
     {
       "id": "THRT-002",
       "title": "Signing-key exfiltration by a platform insider",
-      "description": "An operator with host access copies the token signing keys.",
+      "source": "An operator with host-level access to the application zone.",
+      "prerequisites": "Legitimate administrative access to the token service host.",
+      "action": "Read the retrieved signing key material from process memory or configuration.",
+      "impact": "Ability to mint tokens indefinitely without detection.",
+      "abuse_path": [
+        "Authenticate to the token service host with administrative credentials.",
+        "Trigger or observe a signing-key retrieval.",
+        "Copy the key material out of the restricted zone."
+      ],
+      "likelihood": "low",
+      "likelihood_rationale": "Requires an authorised operator to act maliciously.",
       "severity": "high",
-      "disposition": "accepted",
-      "disposition_rationale": "Host-level insider access is accepted until dedicated key custody lands.",
-      "affected_assets": ["AST-002"],
-      "trust_boundaries": [],
-      "owner": { "milestone": "M10", "issue": null, "workstream": "Platform" },
-      "mitigations": {
-        "adrs": [],
-        "requirements": [],
-        "tests": [],
-        "risks": ["R12"]
-      }
+      "impact_rationale": "Stolen signing keys forge tokens that no downstream check can distinguish.",
+      "priority": "high",
+      "treatment": "accept",
+      "treatment_rationale": "Host-level insider access is accepted until dedicated key custody hardware lands.",
+      "owner": {
+        "principal": "@platform-owner",
+        "milestone": "M10",
+        "issue": null,
+        "workstream": "Platform"
+      },
+      "residual_risk": "Full insider compromise of signing keys remains accepted and is tracked as R1.",
+      "existing_controls": "Access to the restricted zone is limited to named operators.",
+      "gaps": "Key material is retrievable in plaintext by any process on the host.",
+      "recommended_mitigations": "Move signing operations behind dedicated custody hardware.",
+      "detection_ideas": "Audit and alert on signing-key retrievals outside expected rotation windows.",
+      "actor_links": ["ACTOR-002"],
+      "asset_links": ["AST-002"],
+      "boundary_links": ["TB-002"],
+      "flow_links": ["DF-002"],
+      "control_links": ["CTRL-002"],
+      "risk_links": ["R1"],
+      "evidence_links": ["EVD-002"]
     },
     {
       "id": "THRT-003",
       "title": "Metadata downgrade over plain HTTP",
-      "description": "A network attacker serves tampered discovery metadata over an insecure channel.",
+      "source": "A network attacker positioned between the client and the public edge.",
+      "prerequisites": "The ability to observe and modify traffic on the public network.",
+      "action": "Serve tampered discovery metadata over an insecure channel.",
+      "impact": "Clients are steered to an attacker-controlled token endpoint.",
+      "abuse_path": [
+        "Intercept a client's plaintext discovery request.",
+        "Return metadata naming an attacker-controlled token endpoint.",
+        "Collect credentials the client presents to that endpoint."
+      ],
+      "likelihood": "medium",
+      "likelihood_rationale": "Requires a network position, which is routine on hostile access networks.",
       "severity": "medium",
-      "disposition": "open",
-      "affected_assets": ["AST-001", "AST-002"],
-      "trust_boundaries": ["TB-001"],
-      "owner": { "milestone": "M0", "issue": "#7", "workstream": "Platform" },
-      "mitigations": {
-        "adrs": [],
-        "requirements": ["RFCX-001"],
-        "tests": [],
-        "risks": []
-      }
+      "impact_rationale": "Credentials are exposed, but only for clients that accept insecure discovery.",
+      "priority": "medium",
+      "treatment": "mitigate",
+      "owner": {
+        "principal": "@platform-owner",
+        "milestone": "M0",
+        "issue": "#7",
+        "workstream": "Platform"
+      },
+      "residual_risk": "CTRL-003 cannot reach a client that never contacts the edge, so clients that accept plaintext discovery remain exposed. Tracked as R2.",
+      "existing_controls": "None in place; CTRL-003 is planned and discovery is not yet published.",
+      "gaps": "RFCX-001 requires metadata over TLS, but nothing enforces it while CTRL-003 remains planned.",
+      "recommended_mitigations": "Refuse to serve discovery metadata over an insecure channel.",
+      "detection_ideas": "Alert on any plaintext request reaching the discovery path.",
+      "actor_links": ["ACTOR-001"],
+      "asset_links": ["AST-001", "AST-003"],
+      "boundary_links": ["TB-001"],
+      "flow_links": ["DF-003"],
+      "control_links": ["CTRL-003"],
+      "risk_links": ["R2"],
+      "evidence_links": ["EVD-003"]
     }
   ],
   "supersessions": [

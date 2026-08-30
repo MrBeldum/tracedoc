@@ -1,8 +1,11 @@
 package render
 
 import (
+	"html"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -175,5 +178,64 @@ func TestEscapersNeutralizeInvisibleRunes(t *testing.T) {
 	// InlineValues is the path every identifier list renders through.
 	if got := InlineValues([]string{"ADR-001\x1b[31mFAKE"}); strings.ContainsRune(got, '\x1b') {
 		t.Errorf("InlineValues retained an escape byte: %q", got)
+	}
+}
+
+// TestAnchorPairAgrees covers the invariant that makes a same-document link
+// resolve: the destination AnchorHref writes must address the id AnchorID
+// writes for the same identifier. The two escape for different contexts — an
+// HTML attribute and a Markdown destination — so agreement is a property to
+// assert, not something the shared input guarantees. A fragment is
+// percent-decoded and an attribute value HTML-decoded before the browser
+// compares them, so decoding both is what the comparison must model.
+func TestAnchorPairAgrees(t *testing.T) {
+	ids := []string{
+		"THRT-001",
+		"CTRL-001",
+		"R1",
+		// Risk IDs follow the consumer's pattern, which is checked only for
+		// anchoring and length. Each of these terminates one of the two
+		// contexts if it reaches it unescaped.
+		`R1)`,
+		`R1 2`,
+		`R1"`,
+		`R1<a>`,
+		`R1&amp;`,
+		`R1%29`,
+	}
+	// A Markdown inline destination ends at a parenthesis or a space, so
+	// agreement after decoding is not enough on its own: a raw ")" would
+	// decode equal and still truncate the link. Both halves are asserted.
+	safe := regexp.MustCompile(`^[A-Za-z0-9\-._~%]*$`)
+
+	for _, id := range ids {
+		href := AnchorHref(id)
+		if !safe.MatchString(href) {
+			t.Errorf("%q: destination %q carries a character that ends a Markdown destination",
+				id, href)
+		}
+		attribute := html.UnescapeString(AnchorID(id))
+		destination, err := url.PathUnescape(href)
+		if err != nil {
+			t.Errorf("%q: destination is not decodable: %v", id, err)
+			continue
+		}
+		if attribute != destination {
+			t.Errorf("%q: anchor %q and destination %q do not address the same target",
+				id, attribute, destination)
+		}
+	}
+}
+
+// TestAnchorHrefLeavesSchemaOwnedIDsIntact pins that percent-encoding costs
+// nothing for the identifiers the schema actually owns: those are the ones a
+// reviewer reads and shares, and an encoded destination for THRT-001 would be
+// a regression in the rendered companion for no safety gain.
+func TestAnchorHrefLeavesSchemaOwnedIDsIntact(t *testing.T) {
+	for _, id := range []string{"THRT-001", "AST-001", "TB-001", "ADR-102", "OBS-001"} {
+		want := strings.ToLower(id)
+		if got := AnchorHref(id); got != want {
+			t.Errorf("AnchorHref(%q) = %q, want %q", id, got, want)
+		}
 	}
 }

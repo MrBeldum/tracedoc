@@ -4,7 +4,119 @@ All notable changes to this project are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0 - Unreleased
+## Unreleased
+
+### Changed
+
+- **Threat-model schema (breaking, pre-adoption).** The threat model
+  expands from a list of threats into a reviewable architecture-level
+  model, in place, keeping `document_type`, `schema_version` 1,
+  `config_version` 1, and CLI contract 1
+  ([#7](https://github.com/sofired/tracedoc/issues/7)). No released
+  consumer had adopted the previous shape.
+
+  Added to the document: `status`, accountable `owner`, `summary`, `scope`,
+  `assumptions`, `open_questions`, `diagrams`, `components`, `actors`,
+  `attacker_model`, `data_flows`, `entry_points`, `decisions`, `risks`,
+  `controls`, `planned_evidence`, and `observability`. Assets gain
+  `objective`; trust boundaries gain endpoints, data, channels, planned
+  guarantees, validation, implementation state, and evidence.
+
+  Threats replace `description` with `source`, `prerequisites`, `action`,
+  `impact`, and an ordered `abuse_path`, and add `likelihood`, `severity`,
+  and `priority` with rationales, `residual_risk`, `existing_controls`,
+  `gaps`, `recommended_mitigations`, `detection_ideas`, and typed link
+  lists for actors, assets, boundaries, flows, controls, risks, and planned
+  evidence.
+
+  - `affected_assets` becomes `asset_links`, and the threat-level
+    `trust_boundaries` list becomes `boundary_links` — the rename that
+    frees `trust_boundaries` to name the new top-level collection.
+  - `disposition` becomes `treatment`, and its vocabulary changes from the
+    outcome states `open`/`mitigated`/`accepted`/`transferred`/`avoided`
+    to the decisions `mitigate`/`accept`/`avoid`/`transfer`. A threat now
+    records what the project decided, not what has already happened.
+  - `severity` narrows to `low`/`medium`/`high`; the former `critical`
+    level moves to the new `priority` vocabulary. Authors set `priority`
+    informed by likelihood and severity together; the tool does not derive
+    it or check it against them.
+  - `owner` gains a required `principal`, separating the accountable
+    person from the milestone, issue, and workstream that route the work.
+  - The `mitigations` object is removed. Its members move rather than
+    disappear: `requirements` becomes `controls[].requirement_links` and
+    `adrs` becomes `controls[].decision_links`, so an obligation attaches
+    to the control that handles a threat rather than to the threat itself;
+    `tests` becomes the declared `planned_evidence[]` collection, which
+    names the threats it covers; and `risks` becomes `risk_links` on both
+    threats and controls, resolved against declared `risks[]` records. A
+    threat no longer links to a decision directly — it reaches one through
+    a control.
+  - Every array member must be present, even when empty, because `compare`
+    distinguishes an omitted array from an empty one.
+
+- **Coverage is credited only from threats.** Declared assets, boundaries,
+  flows, controls, and risks must be linked by a threat, and threats by
+  planned evidence. References from the architecture graph to its own
+  members no longer count, which previously would have made the rules
+  vacuously true.
+
+- **Configuration.** The `threat_model` section gains `owner_pattern`,
+  `document_statuses`, `control_statuses`, `evidence_levels`,
+  `evidence_statuses`, `reference_hosts`, and a `coverage` object of named
+  switches. `owner_pattern` is scoped to this section rather than shared at
+  the top level because only the threat model has an accountable
+  principal: a project keeping only a requirements matrix should not have
+  to supply a pattern for a concept its documents do not contain.
+
+### Added
+
+- Entry-point coverage: an entry point counts as analysed only when one
+  threat both crosses its trust boundary and travels one of its data flows.
+  Matching either half alone is rejected as a false positive that would
+  certify an unreviewed surface.
+- Document-wide identifier uniqueness across every declared collection, so
+  a reused ID cannot collapse two anchors in the rendered companion.
+  Uniqueness is case-folded, because anchors are: `R1` and `r1` are two
+  identifiers addressing one anchor. Only a consumer `risk_pattern` can
+  express this; every other identifier format is schema-owned and
+  uppercase.
+- `anchor` and `anchorHref` template functions, and an anchor on every
+  declared record in the rendered companion. Assumptions, components,
+  actors, decisions, risks, planned evidence, and observability records are
+  now anchored alongside the collections that already were, so each is
+  addressable by its identifier. `anchor` escapes an identifier for an
+  `id` attribute and `anchorHref` percent-encodes it for a same-document
+  destination; both case-fold, so the pair resolves. Only `risks[].id`
+  needs either, being the one consumer-patterned identifier.
+- Observability records now render their `OBS-` identifier, which the
+  companion previously validated but never showed.
+- Provenance-checked references for diagrams, decisions, and risks: exactly
+  one of a repository-relative `path` or an HTTPS `url` on a host declared
+  in the new `reference_hosts` allowlist. Diagram generation and
+  diagram-source parsing remain out of scope.
+- `check.LexicalURI`, now shared by both document types so they cannot
+  drift apart on what a safe URI looks like, and `check.RepoRelativePath`
+  for the threat model's repository-relative references.
+
+### Fixed
+
+- **Control characters are now rejected in every validated string, as
+  documented.** `docs/schema.md` and the 0.1.0 changelog both stated that
+  validation rejects control characters and the Unicode line and paragraph
+  separators in every validated string. List items were checked; the
+  roughly sixty scalar prose fields were not, so a title, rationale, or
+  summary could carry a vertical tab or an ESC byte and still validate.
+  This affects **both** document types, including the requirements matrix
+  as released in 0.1.0. Rendered output was never exposed — every escaping
+  function neutralizes these code points — but a document that previously
+  smuggled a control character through a prose field is now rejected.
+- `risks[].id` is escaped in the default threat-model template. Risk
+  identifiers follow the consumer-supplied `risk_pattern`, which is checked
+  only for anchoring and length, so a permissive pattern let a risk ID
+  break out of its code span and inject Markdown — including a link to a
+  destination the `reference_hosts` allowlist would have refused.
+
+## 0.1.0 - 2026-08-02
 
 Initial release. The requirements-matrix mechanics were externalized from
 the `tools/reqmatrix` utility in the

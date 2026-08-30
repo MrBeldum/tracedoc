@@ -5,7 +5,9 @@
 package check
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -45,7 +47,18 @@ func (c *Checker) Addf(location, format string, args ...any) {
 	c.Add(location, fmt.Sprintf(format, args...))
 }
 
-// RequiredString enforces a non-blank, bounded string.
+// RequiredString enforces a non-blank, bounded, control-free string: the
+// guarantee every validated string field in every document carries. It
+// reports whether value is safe to validate further — for example against
+// a consumer-supplied regular expression.
+//
+// Run it before any such pattern. Consumer patterns are policy, not a
+// lexical safety net: this check is what keeps unbounded or
+// control-bearing values out of rendered output regardless of how
+// permissive a pattern is, and running it first means one malformed value
+// cannot cascade into several diagnostics. List items get the same
+// guarantee through StringList, and the renderer's escaping functions
+// neutralize the same code points in free-text prose.
 func (c *Checker) RequiredString(location, value string) bool {
 	if !Nonempty(value) {
 		c.Add(location, "expected a non-empty string")
@@ -55,31 +68,15 @@ func (c *Checker) RequiredString(location, value string) bool {
 		c.Addf(location, "exceeds %d-byte limit", MaxStringBytes)
 		return false
 	}
-	return true
-}
-
-// BoundedControlFreeString enforces RequiredString and additionally rejects
-// control and line-separator characters. It reports whether value is safe
-// to further validate (for example against a consumer-supplied regular
-// expression): a value that fails either check is rejected here, before
-// that further check runs, so one malformed value cannot cascade into
-// multiple diagnostics. Consumer patterns are policy, not a lexical safety
-// net: this check is what keeps unbounded or control-bearing scalar values
-// out of rendered output regardless of how permissive a pattern is. List
-// items get the same guarantee through StringList, and the renderer's
-// escaping functions neutralize the same code points in free-text prose.
-func (c *Checker) BoundedControlFreeString(location, value string) bool {
-	if !c.RequiredString(location, value) {
-		return false
-	}
 	return c.ControlFreeString(location, value)
 }
 
 // ControlFreeString rejects control characters (Unicode category Cc,
 // which includes NEL) and the Unicode line and paragraph separators
 // (categories Zl and Zp) — every code point that any Markdown consumer
-// might treat as a line break. Use it alone when RequiredString has
-// already run (for example on StringList items).
+// might treat as a line break. RequiredString composes it; call it
+// directly only for a value whose length and blankness were already
+// established some other way.
 func (c *Checker) ControlFreeString(location, value string) bool {
 	if strings.IndexFunc(value, func(r rune) bool {
 		return unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
@@ -92,9 +89,9 @@ func (c *Checker) ControlFreeString(location, value string) bool {
 
 // StringList enforces a present array of bounded, unique, control-free
 // strings; requireItems additionally rejects an empty array. Every list
-// item receives the same lexical guarantee as a scalar field validated
-// with BoundedControlFreeString, so no free-form identifier list can
-// carry a control or line-separator character into rendered output.
+// item receives exactly the same lexical guarantee as a scalar field, so
+// no free-form identifier list can carry a control or line-separator
+// character into rendered output.
 func (c *Checker) StringList(location string, values []string, requireItems bool) bool {
 	if values == nil || requireItems && len(values) == 0 {
 		expectation := "expected an array"
@@ -109,8 +106,6 @@ func (c *Checker) StringList(location string, values []string, requireItems bool
 	for index, value := range values {
 		itemLocation := fmt.Sprintf("%s[%d]", location, index)
 		if !c.RequiredString(itemLocation, value) {
-			valid = false
-		} else if !c.ControlFreeString(itemLocation, value) {
 			valid = false
 		}
 		if _, duplicate := seen[value]; duplicate {
@@ -170,4 +165,61 @@ func SortedSetDifference(left, right map[string]struct{}) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// LexicalURI runs the schema-owned URI format and injection checks that
+// apply to every URI any document may carry, regardless of which source or
+// host policy governs it. Callers layer their own provenance rule — an
+// exact standard host, a consumer host allowlist — on top of the parsed
+// result. Keeping the lexical half here means a new document type cannot
+// accidentally accept a URI shape the older ones reject.
+func LexicalURI(value string) (*url.URL, error) {
+	if strings.TrimSpace(value) != value ||
+		strings.Contains(value, `\`) ||
+		strings.IndexFunc(value, func(r rune) bool {
+			return unicode.IsControl(r) || unicode.IsSpace(r)
+		}) >= 0 {
+		return nil, errors.New("contains whitespace, a control character, or a backslash")
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URI: %w", err)
+	}
+	if parsed.Opaque != "" || parsed.User != nil || parsed.Port() != "" || parsed.RawQuery != "" {
+		return nil, errors.New("opaque URIs, user information, ports, and queries are not allowed")
+	}
+	if strings.IndexFunc(parsed.Path+parsed.Fragment, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.IsSpace(r)
+	}) >= 0 {
+		return nil, errors.New("contains encoded whitespace or a control character")
+	}
+	return parsed, nil
+}
+
+// RepoRelativePath validates a repository-relative reference that this tool
+// echoes into rendered Markdown but never opens. It deliberately does not
+// reject ".." segments: documents legitimately point at sibling files, and
+// there is no local traversal to prevent while the path is never resolved.
+// Re-derive these bounds before making anything open the path.
+func RepoRelativePath(value string) error {
+	if !Nonempty(value) {
+		return errors.New("expected a non-empty string")
+	}
+	if len(value) > MaxStringBytes {
+		return fmt.Errorf("exceeds %d-byte limit", MaxStringBytes)
+	}
+	if strings.IndexFunc(value, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.IsSpace(r) ||
+			unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
+	}) >= 0 {
+		return errors.New("contains whitespace or a control character")
+	}
+	if strings.ContainsAny(value, `\`) || strings.Contains(value, ":") {
+		return errors.New("contains a backslash or a scheme")
+	}
+	if strings.HasPrefix(value, "/") {
+		return errors.New("expected a relative path")
+	}
+	return nil
 }

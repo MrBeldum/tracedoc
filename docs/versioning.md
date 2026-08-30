@@ -29,6 +29,27 @@ Within a tool major version:
 Version `0.y.z` follows the same discipline with reduced stability
 promises: minor releases may break, and the changelog records every break.
 
+### The one in-place schema revision
+
+The threat-model schema was expanded in place — keeping its version number
+— after v0.1.0 was tagged, in
+[#7](https://github.com/sofired/tracedoc/issues/7). That was a deliberate
+one-time exception taken because the maintainers were not aware of any
+consumer authoring documents against the schema-1 threat model yet, and
+because the expansion was needed before the first consumer migrated rather
+than after.
+
+It is worth being honest about the limits of that reasoning: this project
+has no telemetry and no consumer registry, so "no consumer had adopted it"
+is a judgement the maintainers asserted, not a fact they could verify.
+v0.1.0 was publicly tagged and pinnable through the Go module proxy from
+the day it shipped.
+
+**The exception is spent.** Every later breaking change to either schema
+takes a new schema version and a major tool release, per the table above,
+regardless of what adoption is believed to be. Treat this section as a
+record of what happened, not as a standing escape hatch.
+
 ## Release process
 
 1. Update `CHANGELOG.md` and the `toolVersion` constant in

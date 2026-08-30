@@ -148,6 +148,48 @@ func TestCompareRejections(t *testing.T) {
 			},
 		},
 		{
+			// Change detection is a reflect.DeepEqual over the whole
+			// document, so it covers every collection for free today. These
+			// cases pin that: a future hand-built diff that only inspected
+			// threats would silently stop noticing edits to the
+			// architecture graph and the assurance records, which is most
+			// of the document.
+			name:  "change to a control without version increase",
+			want:  `document changed but document_version "0.1.0" does not increase baseline "0.1.0"`,
+			rules: allRules(),
+			mutate: func(doc *threats.Document) {
+				doc.Controls[0].ImplementationNote = "Revised implementation note."
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
+			name:  "change to an asset without version increase",
+			want:  `document changed but document_version "0.1.0" does not increase baseline "0.1.0"`,
+			rules: allRules(),
+			mutate: func(doc *threats.Document) {
+				doc.Assets[0].Objective = "Confidentiality only."
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
+			name:  "change to the architecture graph without version increase",
+			want:  `document changed but document_version "0.1.0" does not increase baseline "0.1.0"`,
+			rules: allRules(),
+			mutate: func(doc *threats.Document) {
+				doc.TrustBoundaries[0].ImplementationState = "implemented"
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
+			name:  "change to document context without version increase",
+			want:  `document changed but document_version "0.1.0" does not increase baseline "0.1.0"`,
+			rules: allRules(),
+			mutate: func(doc *threats.Document) {
+				doc.Summary = "Revised summary."
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
 			name:  "schema change without major increase",
 			want:  "schema_version changed from 1 to 2 without a major document_version increase",
 			rules: allRules(),

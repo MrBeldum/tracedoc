@@ -23,7 +23,8 @@ validation:
 - exactly one top-level JSON value; and
 - a top-level `document_type` member naming the schema family.
 
-Every validated string field is limited to 16 KiB. All string fields are
+Every validated string field is non-blank (a value of only whitespace is
+rejected), limited to 16 KiB, and free of the code points below. All string fields are
 plain text: authored Markdown and HTML are not supported, and the renderer
 escapes content so it cannot introduce Markdown structure or raw HTML.
 Formatted content requires a future, explicitly named field and a separate
@@ -52,6 +53,35 @@ rendering, where reordering would mislead a reader of the generated
 document. Other format-category (Cf) code points, such as zero-width
 joiners, are permitted in both layers.
 
+## Schema-owned versus configured vocabularies
+
+Some enumerated vocabularies are fixed by a schema; others are declared in
+[consumer configuration](config.md). The split is not arbitrary, and it is
+the same for every document type:
+
+- **Schema-owned** when the tool itself depends on the exact values —
+  either a validation rule branches on them (a threat model's `treatment`
+  decides which link category becomes mandatory) or the renderer does
+  (`priority` and `treatment` drive the fixed section order and grouping of
+  the generated companion). A vocabulary is also schema-owned when it is a
+  fixed scale or an external standard the tool reports rather than a
+  project's own labels: a threat model's `likelihood` and `severity`
+  ratings mean the same thing in every project that uses this tool, and
+  `decisions[].status` is the ordinary decision-record lifecycle.
+- **Configured** when the values are a project's own workflow labels and
+  nothing in the tool reads them beyond membership — a threat model's
+  document, control, and evidence statuses, its evidence levels, and a
+  requirements matrix's verification levels.
+
+The practical test when adding one: if you can rename every value without
+changing any behaviour except which strings are accepted, it belongs in
+configuration. Adding a vocabulary that a rule branches on is a schema
+revision.
+
+This is the same policy-versus-mechanics boundary that keeps a
+general-purpose rule language out of the configuration: the tool owns
+mechanics, the consumer owns policy.
+
 ## Shared structural conventions
 
 Both schemas share these members and semantics:
@@ -64,12 +94,28 @@ Both schemas share these members and semantics:
 | `last_reviewed`    | RFC 3339 full date (`YYYY-MM-DD`)                            |
 | `supersessions`    | required array (may be empty), append-only across accepted revisions: `retired_id` (unique, not active), required `replacement_ids` (all entries active; an explicitly empty array records withdrawal without a successor), non-empty `rationale` |
 
+The `owner` member is not one shape across the document types. A
+requirements matrix's `owner` object carries routing only (milestone,
+issue, workstream). A threat model's `owner` object adds a required
+accountable `principal`, and its top-level `owner` is a bare principal
+string. Only the threat model has a notion of an accountable person, which
+is why `owner_pattern` is configured in that document type's section
+rather than shared.
+
 Stable IDs (requirement and threat IDs) share the format
-`^[A-Z][A-Z0-9]*-[0-9]{3}$` and are never renumbered or reused; retiring
+`^[A-Z][A-Z0-9]*-[0-9]{3}$` and are never renumbered or reused. The threat
+model additionally declares several other entity collections, each with its
+own reserved prefix within that same format
+([schema-threat-model.md](schema-threat-model.md#identifiers)); retiring
 one requires a retained supersession — naming its replacements when the
 obligation was split, merged, or replaced, or with an empty replacement
 list when it was withdrawn outright. Withdrawals are as immutable as any
 other ledger entry: later granting a withdrawn ID replacements is a
 rejected ledger edit. The `compare` command enforces these
-guarantees across revisions for both document types
-([cli.md](cli.md#matrix-compare--config-path--baseline-path--candidate-path)).
+guarantees across revisions for both document types. Retiring an ID that
+is itself listed as another entry's replacement is not expressible in
+schema 1 for either document type; see
+[schema-requirements.md](schema-requirements.md) for the worked example
+and [issue #3](https://github.com/sofired/tracedoc/issues/3) for the
+schema-2 candidate
+([cli.md](cli.md#tracedoc-compare--config-path--baseline-path--candidate-path)).

@@ -4,48 +4,92 @@
 
 - Document version: `0.1.0`
 - Last reviewed: `2026-07-31`
+- Status: `draft`
+- Accountable owner: @security-lead
 - Threats: **3**
-- Assets: **2**
-- Trust boundaries: **1**
+- Controls: **3**
+- Planned evidence: **3**
+
+## Summary
+
+Architecture-level threat model for the example token service, covering credential handling, token issuance, and signing-key custody.
+
+## Scope
+
+**In scope:**
+
+- The public token endpoint and its request path.
+- Signing-key storage and retrieval by the token service.
+
+**Out of scope:**
+
+- Downstream resource servers that consume issued tokens.
+- Physical security of the hosting facility.
+
+## Assumptions
+
+| ID | Assumption | If it does not hold |
+| --- | --- | --- |
+| <a id="asm-001"></a>`ASM-001` | Transport security terminates at the public edge and is correctly configured. | If it does not hold, every boundary guarantee that relies on channel confidentiality is void. |
+
+## Open questions
+
+- Whether dedicated key custody hardware lands before the first production release.
+
+## Attacker model
+
+**Assumed capable of:**
+
+- Send arbitrary requests to any publicly reachable endpoint.
+- Replay credentials obtained from an unrelated breach.
+- Observe traffic on the public network.
+
+**Assumed not capable of:**
+
+- Break correctly configured transport security.
+- Obtain physical access to the hosting facility.
+
+## Actors
+
+| ID | Actor | Trust | Description |
+| --- | --- | --- | --- |
+| <a id="actor-001"></a>`ACTOR-001` | Anonymous client | untrusted | Any party that can reach the public token endpoint. |
+| <a id="actor-002"></a>`ACTOR-002` | Platform operator | partially trusted | Staff with host-level access to the application and restricted zones. |
+
+## Architecture
+
+| ID | Component | Zone | Purpose | Evidence |
+| --- | --- | --- | --- | --- |
+| <a id="comp-001"></a>`COMP-001` | Public edge proxy | public | Terminates transport security and forwards requests to the token service. | diagrams/data-flow.md |
+| <a id="comp-002"></a>`COMP-002` | Token service | application | Authenticates clients and issues signed tokens. | diagrams/data-flow.md |
+| <a id="comp-003"></a>`COMP-003` | Key store | restricted | Holds the private keys that sign issued tokens. | diagrams/data-flow.md |
+
+### Diagrams
+
+- [Data-flow and trust-boundary overview](diagrams/data-flow.md)
+- [Token issuance sequence](https://diagrams.example.org/example/token-issuance.svg)
 
 ## Status summary
 
-| Severity | Count |
+| Priority | Count |
 | --- | ---: |
 | `critical` | 1 |
 | `high` | 1 |
 | `medium` | 1 |
 | `low` | 0 |
 
-| Disposition | Count |
+| Treatment | Count |
 | --- | ---: |
-| `open` | 1 |
-| `mitigated` | 1 |
-| `accepted` | 1 |
+| `mitigate` | 2 |
+| `accept` | 1 |
 
-## Trust boundary index
+## Assets
 
-| ID | Boundary | Threats |
-| --- | --- | ---: |
-| [`TB-001`](#tb-001) | Public network to token endpoint | 2 |
-
-<a id="tb-001"></a>
-<details>
-<summary><code>TB-001</code> - Public network to token endpoint (2)</summary>
-
-Requests crossing from the public network into the token service.
-
-[`THRT-001`](#thrt-001), [`THRT-003`](#thrt-003)
-
-</details>
-
-
-## Asset index
-
-| ID | Asset | Threats |
-| --- | --- | ---: |
-| [`AST-001`](#ast-001) | Client credentials | 2 |
-| [`AST-002`](#ast-002) | Token signing keys | 2 |
+| ID | Asset | Objective | Threats |
+| --- | --- | --- | ---: |
+| [`AST-001`](#ast-001) | Client credentials | Confidentiality and resistance to offline guessing. | 2 |
+| [`AST-002`](#ast-002) | Token signing keys | Confidentiality and non-repudiation of issued tokens. | 1 |
+| [`AST-003`](#ast-003) | Discovery metadata | Integrity and authenticity for every client that reads it. | 1 |
 
 <a id="ast-001"></a>
 <details>
@@ -59,114 +103,448 @@ Registered client secrets and authentication material.
 
 <a id="ast-002"></a>
 <details>
-<summary><code>AST-002</code> - Token signing keys (2)</summary>
+<summary><code>AST-002</code> - Token signing keys (1)</summary>
 
 Private keys that sign issued tokens.
 
-[`THRT-002`](#thrt-002), [`THRT-003`](#thrt-003)
+[`THRT-002`](#thrt-002)
+
+</details>
+
+<a id="ast-003"></a>
+<details>
+<summary><code>AST-003</code> - Discovery metadata (1)</summary>
+
+The published document naming the token endpoint and its keys.
+
+[`THRT-003`](#thrt-003)
 
 </details>
 
 
-## Severity: critical
+## Trust boundaries
 
-| ID | Threat | Disposition | Owner | Assets | Boundaries |
+| ID | Boundary | Source | Destination | State | Threats |
+| --- | --- | --- | --- | --- | ---: |
+| [`TB-001`](#tb-001) | Public network to token endpoint | `COMP-001` | `COMP-002` | planned | 2 |
+| [`TB-002`](#tb-002) | Token service to key store | `COMP-002` | `COMP-003` | partially implemented | 1 |
+
+<a id="tb-001"></a>
+<details>
+<summary><code>TB-001</code> - Public network to token endpoint (2)</summary>
+
+Requests crossing from the public network into the token service.
+
+**Data crossing:** `Client credentials`, `Token requests`
+
+**Channels:** `HTTPS`
+
+**Planned guarantees:**
+
+- Client credentials are never accepted over an insecure channel.
+- Authentication failures are rate limited per client.
+
+**Validation:**
+
+- Negative tests assert that plaintext requests are rejected.
+
+**Implementation state:** planned
+
+**Evidence:** diagrams/data-flow.md
+
+[`THRT-001`](#thrt-001), [`THRT-003`](#thrt-003)
+
+</details>
+
+<a id="tb-002"></a>
+<details>
+<summary><code>TB-002</code> - Token service to key store (1)</summary>
+
+Signing-key retrieval crossing into the restricted zone.
+
+**Data crossing:** `Signing key material`
+
+**Channels:** `Mutually authenticated TLS`
+
+**Planned guarantees:**
+
+- Only the token service identity may retrieve signing keys.
+- Key retrieval is audited.
+
+**Validation:**
+
+- Integration tests assert that an unauthenticated caller is refused.
+
+**Implementation state:** partially implemented
+
+**Evidence:** diagrams/data-flow.md
+
+[`THRT-002`](#thrt-002)
+
+</details>
+
+
+## Data flows
+
+<a id="df-001"></a>
+<details>
+<summary><code>DF-001</code> - Token issuance (1)</summary>
+
+**Sequence:**
+
+1. Client presents credentials to the public edge proxy.
+2. Proxy forwards the authenticated request to the token service.
+3. Token service validates the credentials and issues a signed token.
+
+**Data:** `Client credentials`, `Issued tokens`
+
+**Boundaries crossed:** `TB-001`, `TB-002`
+
+[`THRT-001`](#thrt-001)
+
+</details>
+
+<a id="df-002"></a>
+<details>
+<summary><code>DF-002</code> - Signing-key retrieval (1)</summary>
+
+**Sequence:**
+
+1. Token service requests the active signing key.
+2. Key store authorises the caller and returns the key material.
+
+**Data:** `Signing key material`
+
+**Boundaries crossed:** `TB-002`
+
+[`THRT-002`](#thrt-002)
+
+</details>
+
+<a id="df-003"></a>
+<details>
+<summary><code>DF-003</code> - Discovery metadata retrieval (1)</summary>
+
+**Sequence:**
+
+1. Client requests the discovery document from the public edge proxy.
+2. Proxy returns metadata naming the token endpoint and its keys.
+3. Client configures itself from the returned metadata.
+
+**Data:** `Discovery metadata`
+
+**Boundaries crossed:** `TB-001`
+
+[`THRT-003`](#thrt-003)
+
+</details>
+
+
+## Entry points
+
+| ID | Surface | Reached by | Boundary | Flows | Threats |
+| --- | --- | --- | --- | --- | ---: |
+| [`EP-001`](#ep-001) | POST /token | Directly from the public network. | `TB-001` | DF-001 | 1 |
+| [`EP-002`](#ep-002) | Key store retrieval API | From the token service inside the application zone. | `TB-002` | DF-002 | 1 |
+| [`EP-003`](#ep-003) | GET /.well-known/openid-configuration | Directly from the public network, before any credential is presented. | `TB-001` | DF-003 | 1 |
+
+<a id="ep-001"></a>
+<details>
+<summary><code>EP-001</code> - POST /token (1)</summary>
+
+**Notes:** Unauthenticated by definition: it is where credentials are first presented.
+
+**Evidence:** diagrams/data-flow.md
+
+[`THRT-001`](#thrt-001)
+
+</details>
+
+<a id="ep-002"></a>
+<details>
+<summary><code>EP-002</code> - Key store retrieval API (1)</summary>
+
+**Notes:** Reachable only after a foothold in the application zone.
+
+**Evidence:** diagrams/data-flow.md
+
+[`THRT-002`](#thrt-002)
+
+</details>
+
+<a id="ep-003"></a>
+<details>
+<summary><code>EP-003</code> - GET /.well-known/openid-configuration (1)</summary>
+
+**Notes:** Read by clients during configuration, so tampering here steers every later request.
+
+**Evidence:** diagrams/data-flow.md
+
+[`THRT-003`](#thrt-003)
+
+</details>
+
+
+## Priority: critical
+
+| ID | Threat | Treatment | Owner | Assets | Boundaries |
 | --- | --- | --- | --- | --- | --- |
-| [`THRT-001`](#thrt-001) | Credential stuffing against the token endpoint | `mitigated` | M1 / Protocol / #10 | AST-001 | TB-001 |
+| [`THRT-001`](#thrt-001) | Credential stuffing against the token endpoint | `mitigate` | @protocol-owner / M1 / Protocol / #10 | AST-001 | TB-001 |
 
 <a id="thrt-001"></a>
 <details>
 <summary><code>THRT-001</code> - Credential stuffing against the token endpoint</summary>
 
-**Description:** An attacker replays leaked client credentials to obtain tokens.
+**Source:** An unauthenticated party on the public network.
 
-**Severity:** `critical`
+**Prerequisites:** Possession of credentials leaked from an unrelated breach.
 
-**Disposition:** `mitigated`
+**Action:** Replay leaked client credentials against the token endpoint until one succeeds.
 
-**Owner:** M1 / Protocol / #10
+**Impact:** Issuance of valid tokens to an attacker-controlled client.
 
-**Affected assets:** `AST-001`
+**Abuse path:**
+
+1. Obtain a credential dump from an unrelated breach.
+2. Enumerate the public token endpoint for accepted client identifiers.
+3. Replay each credential until the endpoint issues a token.
+
+**Likelihood:** `high` - The endpoint is publicly reachable and credential dumps are widely available.
+
+**Severity:** `high` - A successful replay yields a valid token indistinguishable from a legitimate one.
+
+**Priority:** `critical`
+
+**Treatment:** `mitigate`
+
+**Owner:** @protocol-owner / M1 / Protocol / #10
+
+**Residual risk:** Low-rate distributed replay remains possible until anomaly detection lands.
+
+**Existing controls:** None; the endpoint is not yet built.
+
+**Gaps:** No rate limiting and no credential-breach screening.
+
+**Recommended mitigations:** Per-client rate limiting plus screening against known-breached credentials.
+
+**Detection ideas:** Alert on authentication failure rate per client identifier.
+
+**Actors:** `ACTOR-001`
+
+**Assets:** `AST-001`
 
 **Trust boundaries:** `TB-001`
 
-**ADRs:** None recorded
+**Data flows:** `DF-001`
 
-**Requirements:** `EXCORE-001`
-
-**Tests:** `token endpoint negative suite`
+**Controls:** `CTRL-001`
 
 **Risks:** None recorded
+
+**Planned evidence:** `EVD-001`
 
 </details>
 
 
-## Severity: high
+## Priority: high
 
-| ID | Threat | Disposition | Owner | Assets | Boundaries |
+| ID | Threat | Treatment | Owner | Assets | Boundaries |
 | --- | --- | --- | --- | --- | --- |
-| [`THRT-002`](#thrt-002) | Signing-key exfiltration by a platform insider | `accepted` | M10 / Platform | AST-002 |  |
+| [`THRT-002`](#thrt-002) | Signing-key exfiltration by a platform insider | `accept` | @platform-owner / M10 / Platform | AST-002 | TB-002 |
 
 <a id="thrt-002"></a>
 <details>
 <summary><code>THRT-002</code> - Signing-key exfiltration by a platform insider</summary>
 
-**Description:** An operator with host access copies the token signing keys.
+**Source:** An operator with host-level access to the application zone.
 
-**Severity:** `high`
+**Prerequisites:** Legitimate administrative access to the token service host.
 
-**Disposition:** `accepted`
+**Action:** Read the retrieved signing key material from process memory or configuration.
 
-**Rationale:** Host-level insider access is accepted until dedicated key custody lands.
+**Impact:** Ability to mint tokens indefinitely without detection.
 
-**Owner:** M10 / Platform
+**Abuse path:**
 
-**Affected assets:** `AST-002`
+1. Authenticate to the token service host with administrative credentials.
+2. Trigger or observe a signing-key retrieval.
+3. Copy the key material out of the restricted zone.
 
-**Trust boundaries:** None recorded
+**Likelihood:** `low` - Requires an authorised operator to act maliciously.
 
-**ADRs:** None recorded
+**Severity:** `high` - Stolen signing keys forge tokens that no downstream check can distinguish.
 
-**Requirements:** None recorded
+**Priority:** `high`
 
-**Tests:** None recorded
+**Treatment:** `accept`
 
-**Risks:** `R12`
+**Treatment rationale:** Host-level insider access is accepted until dedicated key custody hardware lands.
+
+**Owner:** @platform-owner / M10 / Platform
+
+**Residual risk:** Full insider compromise of signing keys remains accepted and is tracked as R1.
+
+**Existing controls:** Access to the restricted zone is limited to named operators.
+
+**Gaps:** Key material is retrievable in plaintext by any process on the host.
+
+**Recommended mitigations:** Move signing operations behind dedicated custody hardware.
+
+**Detection ideas:** Audit and alert on signing-key retrievals outside expected rotation windows.
+
+**Actors:** `ACTOR-002`
+
+**Assets:** `AST-002`
+
+**Trust boundaries:** `TB-002`
+
+**Data flows:** `DF-002`
+
+**Controls:** `CTRL-002`
+
+**Risks:** `R1`
+
+**Planned evidence:** `EVD-002`
 
 </details>
 
 
-## Severity: medium
+## Priority: medium
 
-| ID | Threat | Disposition | Owner | Assets | Boundaries |
+| ID | Threat | Treatment | Owner | Assets | Boundaries |
 | --- | --- | --- | --- | --- | --- |
-| [`THRT-003`](#thrt-003) | Metadata downgrade over plain HTTP | `open` | M0 / Platform / #7 | AST-001, AST-002 | TB-001 |
+| [`THRT-003`](#thrt-003) | Metadata downgrade over plain HTTP | `mitigate` | @platform-owner / M0 / Platform / #7 | AST-001, AST-003 | TB-001 |
 
 <a id="thrt-003"></a>
 <details>
 <summary><code>THRT-003</code> - Metadata downgrade over plain HTTP</summary>
 
-**Description:** A network attacker serves tampered discovery metadata over an insecure channel.
+**Source:** A network attacker positioned between the client and the public edge.
 
-**Severity:** `medium`
+**Prerequisites:** The ability to observe and modify traffic on the public network.
 
-**Disposition:** `open`
+**Action:** Serve tampered discovery metadata over an insecure channel.
 
-**Owner:** M0 / Platform / #7
+**Impact:** Clients are steered to an attacker-controlled token endpoint.
 
-**Affected assets:** `AST-001`, `AST-002`
+**Abuse path:**
+
+1. Intercept a client&#39;s plaintext discovery request.
+2. Return metadata naming an attacker-controlled token endpoint.
+3. Collect credentials the client presents to that endpoint.
+
+**Likelihood:** `medium` - Requires a network position, which is routine on hostile access networks.
+
+**Severity:** `medium` - Credentials are exposed, but only for clients that accept insecure discovery.
+
+**Priority:** `medium`
+
+**Treatment:** `mitigate`
+
+**Owner:** @platform-owner / M0 / Platform / #7
+
+**Residual risk:** CTRL-003 cannot reach a client that never contacts the edge, so clients that accept plaintext discovery remain exposed. Tracked as R2.
+
+**Existing controls:** None in place; CTRL-003 is planned and discovery is not yet published.
+
+**Gaps:** RFCX-001 requires metadata over TLS, but nothing enforces it while CTRL-003 remains planned.
+
+**Recommended mitigations:** Refuse to serve discovery metadata over an insecure channel.
+
+**Detection ideas:** Alert on any plaintext request reaching the discovery path.
+
+**Actors:** `ACTOR-001`
+
+**Assets:** `AST-001`, `AST-003`
 
 **Trust boundaries:** `TB-001`
 
-**ADRs:** None recorded
+**Data flows:** `DF-003`
 
-**Requirements:** `RFCX-001`
+**Controls:** `CTRL-003`
 
-**Tests:** None recorded
+**Risks:** `R2`
 
-**Risks:** None recorded
+**Planned evidence:** `EVD-003`
 
 </details>
+
+## Controls
+
+| ID | Control | Status | Owner | Requirements | Decisions | Risks | Evidence | Threats |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| <a id="ctrl-001"></a>`CTRL-001` | Per-client authentication rate limiting | `planned` | @protocol-owner / M1 / Protocol / #10 | EXCORE-001 |  |  | EVD-001 | THRT-001 |
+| <a id="ctrl-002"></a>`CTRL-002` | Audited, identity-bound signing-key retrieval | `planned` | @platform-owner / M10 / Platform |  | ADR-102 | R1 | EVD-002 | THRT-002 |
+| <a id="ctrl-003"></a>`CTRL-003` | Discovery metadata served over TLS only | `planned` | @platform-owner / M0 / Platform / #7 | RFCX-001 | ADR-101 | R2 | EVD-003 | THRT-003 |
+
+<details>
+<summary><code>CTRL-001</code> - Per-client authentication rate limiting</summary>
+
+Bounds the rate of authentication attempts per registered client.
+
+**Implementation note:** Enforced at the token service rather than the edge so it survives a proxy bypass.
+
+</details>
+
+<details>
+<summary><code>CTRL-002</code> - Audited, identity-bound signing-key retrieval</summary>
+
+Restricts key retrieval to the token service identity and records every access.
+
+**Implementation note:** Depends on the key custody decision recorded in ADR-102.
+
+</details>
+
+<details>
+<summary><code>CTRL-003</code> - Discovery metadata served over TLS only</summary>
+
+Refuses to serve discovery metadata over an insecure channel rather than answering the request.
+
+**Implementation note:** Enforced at the public edge, where ADR-101 terminates transport security. Server-side only: an on-path attacker can answer a plaintext request before it reaches the edge, so this bounds exposure rather than removing it, and R2 stays open until clients refuse plaintext discovery.
+
+</details>
+
+
+## Planned evidence
+
+| ID | Evidence | Level | Status | Owner | Threats | Controls |
+| --- | --- | --- | --- | --- | --- | --- |
+| <a id="evd-001"></a>`EVD-001` | Token endpoint negative suite | `adversarial` | `planned` | @protocol-owner / M1 / Protocol / #10 | THRT-001 | CTRL-001 |
+| <a id="evd-002"></a>`EVD-002` | Key custody integration suite | `integration` | `deferred` | @platform-owner / M10 / Platform | THRT-002 | CTRL-002 |
+| <a id="evd-003"></a>`EVD-003` | Discovery transport negative suite | `adversarial` | `planned` | @platform-owner / M0 / Platform / #7 | THRT-003 | CTRL-003 |
+
+## Decisions
+
+| ID | Decision | Status | Controls | Reference |
+| --- | --- | --- | --- | --- |
+| <a id="adr-101"></a>`ADR-101` | Terminate transport security at the public edge | `accepted` | CTRL-003 | [../decisions/adr-101.md](../decisions/adr-101.md) |
+| <a id="adr-102"></a>`ADR-102` | Adopt dedicated key custody hardware | `proposed` | CTRL-002 | [https://decisions.example.org/example/adr-102](https://decisions.example.org/example/adr-102) |
+
+## Risks and residual ownership
+
+| ID | Risk | Threats | Controls | Reference |
+| --- | --- | --- | --- | --- |
+| <a id="r1"></a>`R1` | Insider access to signing key material | THRT-002 | CTRL-002 | [../plan.md](../plan.md) |
+| <a id="r2"></a>`R2` | Discovery metadata served over an insecure channel | THRT-003 | CTRL-003 | [../plan.md](../plan.md) |
+
+## Observability
+
+<a id="obs-001"></a>
+### `OBS-001` - Token endpoint
+
+**Required signals:**
+
+- Authentication failure count per client.
+- Rate-limit rejection count per client.
+
+**Must never be logged:**
+
+- Client secrets must never be logged.
+- Issued token values must never be logged.
+
+**Alert condition:** Authentication failures for one client exceed the configured threshold within five minutes.
+
+**Controls:** `CTRL-001`
 
 ## Supersessions
 

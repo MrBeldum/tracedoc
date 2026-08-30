@@ -56,6 +56,7 @@ type Config struct {
 	milestone *regexp.Regexp
 	issue     *regexp.Regexp
 	risk      *regexp.Regexp
+	owner     *regexp.Regexp
 }
 
 // RequirementsSection is the requirements-matrix policy.
@@ -66,9 +67,38 @@ type RequirementsSection struct {
 	Render             Render           `json:"render"`
 }
 
-// ThreatModelSection is the threat-model policy.
+// ThreatModelSection is the threat-model policy. The vocabularies here are
+// the ones no schema rule keys off; severity, likelihood, priority, and
+// treatment stay schema-owned because the coupling and coverage rules
+// depend on their exact meaning.
 type ThreatModelSection struct {
-	Render Render `json:"render"`
+	// OwnerPattern lives here rather than at the top level because only
+	// this document type has an accountable principal: the requirements
+	// matrix's owner object carries routing alone. A project that keeps
+	// only a requirements matrix should not have to supply a pattern for
+	// a concept its documents do not contain.
+	OwnerPattern     string   `json:"owner_pattern"`
+	DocumentStatuses []string `json:"document_statuses"`
+	ControlStatuses  []string `json:"control_statuses"`
+	EvidenceLevels   []string `json:"evidence_levels"`
+	EvidenceStatuses []string `json:"evidence_statuses"`
+	ReferenceHosts   []string `json:"reference_hosts"`
+	Coverage         Coverage `json:"coverage"`
+	Render           Render   `json:"render"`
+}
+
+// Coverage selects which declared-entity coverage rules the threat-model
+// validator enforces. Each switch asks whether something the document
+// declared was actually analysed; a consumer building a model incrementally
+// can turn one off while the model is still being written.
+type Coverage struct {
+	RequireAssetCoverage      bool `json:"require_asset_coverage"`
+	RequireBoundaryCoverage   bool `json:"require_boundary_coverage"`
+	RequireFlowCoverage       bool `json:"require_flow_coverage"`
+	RequireEntryPointCoverage bool `json:"require_entry_point_coverage"`
+	RequireControlCoverage    bool `json:"require_control_coverage"`
+	RequireRiskCoverage       bool `json:"require_risk_coverage"`
+	RequireEvidencePerThreat  bool `json:"require_evidence_per_threat"`
 }
 
 // StandardSource declares where citations for one standard may point: either
@@ -147,16 +177,37 @@ func (c *Config) ThreatsPolicy() (threats.Policy, error) {
 	if c.ThreatModel == nil {
 		return threats.Policy{}, fmt.Errorf("config has no threat_model section")
 	}
+	section := c.ThreatModel
 	result := threats.Policy{
-		Workstreams: make(map[string]struct{}, len(c.Workstreams)),
-		Milestone:   c.milestone,
-		Issue:       c.issue,
-		Risk:        c.risk,
-	}
-	for _, value := range c.Workstreams {
-		result.Workstreams[value] = struct{}{}
+		Workstreams:      stringSet(c.Workstreams),
+		Milestone:        c.milestone,
+		Issue:            c.issue,
+		Risk:             c.risk,
+		Owner:            c.owner,
+		DocumentStatuses: stringSet(section.DocumentStatuses),
+		ControlStatuses:  stringSet(section.ControlStatuses),
+		EvidenceLevels:   stringSet(section.EvidenceLevels),
+		EvidenceStatuses: stringSet(section.EvidenceStatuses),
+		ReferenceHosts:   stringSet(section.ReferenceHosts),
+		Coverage: threats.Coverage{
+			Assets:      section.Coverage.RequireAssetCoverage,
+			Boundaries:  section.Coverage.RequireBoundaryCoverage,
+			Flows:       section.Coverage.RequireFlowCoverage,
+			EntryPoints: section.Coverage.RequireEntryPointCoverage,
+			Controls:    section.Coverage.RequireControlCoverage,
+			Risks:       section.Coverage.RequireRiskCoverage,
+			Evidence:    section.Coverage.RequireEvidencePerThreat,
+		},
 	}
 	return result, nil
+}
+
+func stringSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		result[value] = struct{}{}
+	}
+	return result
 }
 
 // RenderOptions returns the presentation options for one document type.
@@ -220,7 +271,7 @@ func (c *Config) validate() []string {
 		c.validateRequirementsSection(&errs, add)
 	}
 	if c.ThreatModel != nil {
-		validateRender(add, "threat_model.render", c.ThreatModel.Render)
+		c.validateThreatModelSection(&errs, add)
 	}
 	return errs
 }
@@ -286,6 +337,36 @@ func (c *Config) validateRequirementsSection(
 	)
 
 	validateRender(add, "requirements.render", section.Render)
+}
+
+func (c *Config) validateThreatModelSection(
+	errs *[]string,
+	add func(location, format string, args ...any),
+) {
+	section := c.ThreatModel
+	c.owner = c.compilePattern(errs, "threat_model.owner_pattern", section.OwnerPattern)
+	validateValueList(errs, "threat_model.document_statuses", section.DocumentStatuses, levelPattern)
+	validateValueList(errs, "threat_model.control_statuses", section.ControlStatuses, levelPattern)
+	validateValueList(errs, "threat_model.evidence_levels", section.EvidenceLevels, levelPattern)
+	validateValueList(errs, "threat_model.evidence_statuses", section.EvidenceStatuses, levelPattern)
+
+	// An absent or empty allowlist is legal and means this consumer accepts
+	// repository-relative references only, which is the reproducible
+	// default: a repo-relative diagram is version-pinned with the document,
+	// while an external one can be edited or removed after review.
+	seen := make(map[string]struct{}, len(section.ReferenceHosts))
+	for index, host := range section.ReferenceHosts {
+		location := fmt.Sprintf("threat_model.reference_hosts[%d]", index)
+		if len(host) > maxValueBytes || !hostPattern.MatchString(host) {
+			add(location, "expected a lowercase DNS host name")
+		}
+		if _, duplicate := seen[host]; duplicate {
+			add(location, "duplicate host %q", host)
+		}
+		seen[host] = struct{}{}
+	}
+
+	validateRender(add, "threat_model.render", section.Render)
 }
 
 func (c *Config) compilePattern(errs *[]string, location, value string) *regexp.Regexp {
