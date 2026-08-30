@@ -4,7 +4,73 @@ All notable changes to this project are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0 - Unreleased
+## Unreleased
+
+### Changed
+
+- **Threat-model schema (breaking, pre-adoption).** The threat model
+  expands from a list of threats into a reviewable architecture-level
+  model, in place, keeping `document_type`, `schema_version` 1,
+  `config_version` 1, and CLI contract 1
+  ([#7](https://github.com/sofired/tracedoc/issues/7)). No released
+  consumer had adopted the previous shape.
+
+  Added to the document: `status`, accountable `owner`, `summary`, `scope`,
+  `assumptions`, `open_questions`, `diagrams`, `components`, `actors`,
+  `attacker_model`, `data_flows`, `entry_points`, `decisions`, `risks`,
+  `controls`, `planned_evidence`, and `observability`. Assets gain
+  `objective`; trust boundaries gain endpoints, data, channels, planned
+  guarantees, validation, implementation state, and evidence.
+
+  Threats replace `description` with `source`, `prerequisites`, `action`,
+  `impact`, and an ordered `abuse_path`, and add `likelihood`, `severity`,
+  and `priority` with rationales, `residual_risk`, `existing_controls`,
+  `gaps`, `recommended_mitigations`, `detection_ideas`, and typed link
+  lists for actors, assets, boundaries, flows, controls, risks, and planned
+  evidence.
+
+  - `disposition` becomes `treatment`, and its vocabulary changes from the
+    outcome states `open`/`mitigated`/`accepted`/`transferred`/`avoided`
+    to the decisions `mitigate`/`accept`/`avoid`/`transfer`. A threat now
+    records what the project decided, not what has already happened.
+  - `severity` narrows to `low`/`medium`/`high`; the former `critical`
+    level moves to the new `priority` vocabulary, which is derived from
+    likelihood and severity together.
+  - `owner` gains a required `principal`, separating the accountable
+    person from the milestone, issue, and workstream that route the work.
+  - The `mitigations` object is removed. Requirement links move to
+    `controls[].requirement_links`, so a requirement obliges the control
+    that handles a threat rather than the threat itself.
+  - Every array member must be present, even when empty, because `compare`
+    distinguishes an omitted array from an empty one.
+
+- **Coverage is credited only from threats.** Declared assets, boundaries,
+  flows, controls, and risks must be linked by a threat, and threats by
+  planned evidence. References from the architecture graph to its own
+  members no longer count, which previously would have made the rules
+  vacuously true.
+
+- **Configuration.** New top-level `owner_pattern`. The `threat_model`
+  section gains `document_statuses`, `control_statuses`, `evidence_levels`,
+  `evidence_statuses`, `reference_hosts`, and a `coverage` object of named
+  switches.
+
+### Added
+
+- Entry-point coverage: an entry point counts as analysed only when one
+  threat both crosses its trust boundary and travels one of its data flows.
+  Matching either half alone is rejected as a false positive that would
+  certify an unreviewed surface.
+- Document-wide identifier uniqueness across every declared collection, so
+  a reused ID cannot collapse two anchors in the rendered companion.
+- Provenance-checked references for diagrams, decisions, and risks: exactly
+  one of a repository-relative `path` or an HTTPS `url` on a host declared
+  in the new `reference_hosts` allowlist. Diagram generation and
+  diagram-source parsing remain out of scope.
+- `check.LexicalURI` and `check.RepoRelativePath`, so both document types
+  share one definition of a safe reference rather than drifting apart.
+
+## 0.1.0 - 2026-08-02
 
 Initial release. The requirements-matrix mechanics were externalized from
 the `tools/reqmatrix` utility in the

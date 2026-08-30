@@ -4,7 +4,7 @@
 
 These instructions apply to the entire repository.
 
-`matrix` is a standalone, dependency-free Go CLI for validating,
+`tracedoc` is a standalone, dependency-free Go CLI for validating,
 rendering, and cross-version-comparing governance documents (requirements
 matrices and system threat models). It owns reusable mechanics only;
 project policy belongs in consumer configuration files, never in this
@@ -22,15 +22,18 @@ codebase.
 - Do not add consumer-specific policy (standard lists, hosts, vocabularies,
   URLs) to Go code or the default templates. New policy needs must become
   new bounded configuration members — never a general-purpose rule
-  language. Vocabularies that coupling rules depend on (severity,
-  disposition, applicability, evidence status) are schema-owned.
+  language. The dividing line is whether a validation rule keys off the
+  value: vocabularies that coupling or coverage rules depend on
+  (applicability, evidence status, likelihood, severity, priority,
+  treatment, decision status) are schema-owned, while vocabularies that
+  merely describe a project's workflow (document, control, and evidence
+  statuses; evidence levels) are configuration.
 - Keep decoding strict: any relaxation of size, depth, duplicate-member,
   unknown-field, or single-value rules is a security-relevant contract
   change.
 - Rendering must stay deterministic and injection-resistant; document
   content always flows through the escaping template functions.
-- `.github/workflows-staged/` holds the CI and release workflows; see its
-  README for why, and keep it in sync with any pipeline change.
+- `.github/workflows/` holds the CI and release workflows.
 
 ## Validation
 
@@ -52,6 +55,6 @@ If an intentional rendering change makes a golden check fail, regenerate
 the affected `testdata/*.md` with the same render command without `-check`
 and commit the result, noting the output change in `CHANGELOG.md`.
 
-The "Self-check fixture documents" step in
-`.github/workflows-staged/ci.yml` is the authoritative list of these
-commands; if the two diverge, CI is correct.
+The "Self-check fixture documents" step in `.github/workflows/ci.yml` is
+the authoritative list of these commands; if the two diverge, CI is
+correct.

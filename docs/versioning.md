@@ -29,6 +29,21 @@ Within a tool major version:
 Version `0.y.z` follows the same discipline with reduced stability
 promises: minor releases may break, and the changelog records every break.
 
+### Revising a schema that has no released consumer
+
+A document schema version identifies a contract that consumers have written
+documents against. While the tool is `0.y.z` and no released consumer has
+adopted a schema yet, that contract has no holders, so expanding the schema
+in place — keeping its version number — is the honest description of what
+happened: there is no earlier population of documents for a version bump to
+distinguish this from. The break is recorded in the changelog like any
+other, and consumers pinning an exact tool version are unaffected until
+they update.
+
+Once a schema has a released consumer, this route closes: any breaking
+change then takes a new schema version and a tool major bump, per the
+table above.
+
 ## Release process
 
 1. Update `CHANGELOG.md` and the `toolVersion` constant in

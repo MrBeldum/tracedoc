@@ -6,9 +6,12 @@ versioned governance documents:
 - a **requirements traceability matrix** — normative standards decomposed
   into atomic, stably identified requirements with citations, ownership,
   planned verification, and evidence status; and
-- a **system threat model** — stably identified threats with severity,
-  disposition, affected assets, trust-boundary context, ownership, and
-  mitigation links, including links into the requirements matrix.
+- a **system threat model** — an architecture-level model of components,
+  actors, attacker capabilities, assets, trust boundaries, data flows, and
+  entry points, plus stably identified threats with abuse paths, likelihood
+  and severity ratings, treatment decisions, accountable ownership, residual
+  risk, and the controls, risk records, and planned evidence that back them,
+  including links into the requirements matrix.
 
 The tool owns the reusable mechanics. Everything project-specific — which
 standards are required, which hosts citations may reference, identifier
@@ -24,9 +27,13 @@ can serve any project without embedding its policy.
   own `document_type`.
 - **Structural and cross-reference validation** — stable ID and key
   formats, citation and supersession integrity, per-type coupling rules
-  (applicability/evidence for requirements; severity/disposition/mitigation
-  for threats), source-host provenance, required-standard and
-  asset/boundary coverage.
+  (applicability/evidence for requirements; treatment/control/risk for
+  threats), source-host provenance, and required-standard coverage.
+- **Topology and coverage rules** — every local link resolves against the
+  right collection; declared assets, boundaries, flows, controls, and risks
+  must actually be analysed by a threat, and an entry point counts as
+  analysed only when a threat both crosses its boundary and travels one of
+  its flows. Each coverage rule is a named configuration switch.
 - **Cross-document link resolution** — a threat model's requirement links
   are resolved against the requirements matrix: unknown IDs are rejected,
   and links to retired IDs are rejected with their replacements named.
@@ -37,6 +44,10 @@ can serve any project without embedding its policy.
 - **Deterministic Markdown rendering** — same input, same output, with
   context-aware escaping so document content cannot inject Markdown or
   HTML. Consumers may replace the per-type templates.
+- **Provenance-checked references** — a diagram, decision, or risk points at
+  a repository-relative path or an HTTPS URL on a consumer-declared host,
+  never an arbitrary destination. The tool neither generates nor parses
+  diagram source.
 - **Atomic output replacement** — rendered files are written via
   same-directory temporary file and rename.
 

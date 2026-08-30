@@ -38,7 +38,8 @@ Strictly decodes the configuration and the document, then validates the
 document snapshot against its schema and the configured policy.
 
 For a **threat model**, `-requirements` names the requirements matrix that
-resolves the threat's requirement links. The named file must itself be a
+resolves the model's requirement links, which hang off `controls[]` rather
+than threats. The named file must itself be a
 valid requirements document under the same configuration; links must
 resolve to its *active* requirement IDs, and links to retired IDs are
 rejected with their replacements named. The flag is optional only when the

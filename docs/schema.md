@@ -65,7 +65,10 @@ Both schemas share these members and semantics:
 | `supersessions`    | required array (may be empty), append-only across accepted revisions: `retired_id` (unique, not active), required `replacement_ids` (all entries active; an explicitly empty array records withdrawal without a successor), non-empty `rationale` |
 
 Stable IDs (requirement and threat IDs) share the format
-`^[A-Z][A-Z0-9]*-[0-9]{3}$` and are never renumbered or reused; retiring
+`^[A-Z][A-Z0-9]*-[0-9]{3}$` and are never renumbered or reused. The threat
+model additionally declares several other entity collections, each with its
+own reserved prefix within that same format
+([schema-threat-model.md](schema-threat-model.md#identifiers)); retiring
 one requires a retained supersession — naming its replacements when the
 obligation was split, merged, or replaced, or with an empty replacement
 list when it was withdrawn outright. Withdrawals are as immutable as any
