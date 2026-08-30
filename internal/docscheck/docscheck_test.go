@@ -639,6 +639,25 @@ func TestCheckSelfCheckCommands(t *testing.T) {
 		requireReport(t, errs, "AGENTS.md", "has no \"## Validation\" section")
 	})
 
+	t.Run("a top-level heading ends the block", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": fixtureAgents + "\n# Appendix\n\n```sh\ngo run ./cmd/tracedoc version\n```\n",
+		})
+		requireClean(t, errs)
+	})
+
+	t.Run("a subheading inside the block does not end it", func(t *testing.T) {
+		// AGENTS.md groups the commands under subheadings. Ending the
+		// block on one would report every command below the first group
+		// as missing.
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": strings.Replace(fixtureAgents,
+				"go run ./cmd/tracedoc compare",
+				"```\n\n### Fixture documents\n\n```sh\ngo run ./cmd/tracedoc compare", 1),
+		})
+		requireClean(t, errs)
+	})
+
 	t.Run("a heading struck out by an HTML comment does not start the block", func(t *testing.T) {
 		errs := checkAll(t, map[string]string{
 			"AGENTS.md": strings.Replace(fixtureAgents, "## Validation\n",
