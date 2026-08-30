@@ -26,6 +26,13 @@
 //     text containing nested brackets are not recognized, so a dead link
 //     written that way goes unreported. None appear in this repository's
 //     documentation today.
+//   - The link and path checks split code spans one line at a time, so a
+//     span that crosses a line ending is not recognized as code there: a
+//     link quoted inside one is read as a live claim, and a path quoted
+//     inside one is not checked at all. Comment blanking does follow such
+//     a span, so a "<!--" written across a line ending cannot silence the
+//     checks below it. No multi-line span appears in this repository's
+//     documentation today.
 //   - Indented (non-fenced) code blocks are not treated as examples. Every
 //     example here uses a fence.
 //   - The checks trust the working tree's file identity, not only its path
@@ -604,40 +611,63 @@ func readDocument(fsys fs.FS, name string) ([]string, error) {
 // Fences are blanked first, and an inline code span is consumed whole, so
 // neither a comment delimiter shown in a code example nor one written as
 // `<!--` in prose opens a comment that would swallow the live links after
-// it. Comments, unlike code spans, may span lines.
+// it. Both comments and code spans may span lines, so the scan runs over
+// the document rather than over each line in isolation.
 func blankHTMLComments(lines []string) []string {
-	blanked := make([]string, len(lines))
+	prose := make([]strings.Builder, len(lines))
 	inComment := false
-	for index, line := range lines {
-		var prose strings.Builder
-		for position := 0; position < len(line); {
-			if length := codeSpanAt(line, position); length > 0 {
-				if !inComment {
-					prose.WriteString(line[position : position+length])
-				}
-				position += length
-				continue
-			}
-			if inComment {
-				if strings.HasPrefix(line[position:], "-->") {
-					inComment = false
-					position += len("-->")
-					continue
-				}
-				position++
-				continue
-			}
-			if strings.HasPrefix(line[position:], "<!--") {
-				inComment = true
-				position += len("<!--")
-				continue
-			}
-			prose.WriteByte(line[position])
-			position++
+	for index, position := 0, 0; index < len(lines); {
+		line := lines[index]
+		if position >= len(line) {
+			index, position = index+1, 0
+			continue
 		}
-		blanked[index] = prose.String()
+		if endIndex, endPosition, ok := codeSpanEnd(lines, index, position); ok {
+			if !inComment {
+				writeCodeSpan(prose, lines, index, position, endIndex, endPosition)
+			}
+			index, position = endIndex, endPosition
+			continue
+		}
+		if inComment {
+			if strings.HasPrefix(line[position:], "-->") {
+				inComment = false
+				position += len("-->")
+				continue
+			}
+			position++
+			continue
+		}
+		if strings.HasPrefix(line[position:], "<!--") {
+			inComment = true
+			position += len("<!--")
+			continue
+		}
+		prose[index].WriteByte(line[position])
+		position++
+	}
+	blanked := make([]string, len(lines))
+	for index := range prose {
+		blanked[index] = prose[index].String()
 	}
 	return blanked
+}
+
+// writeCodeSpan copies the inline code span running from lines[index]
+// [position] to lines[endIndex][endPosition] into the prose being rebuilt,
+// one entry per line it covers. A span that crosses a line ending is kept
+// as code on every line it touches rather than collapsed onto the first.
+func writeCodeSpan(prose []strings.Builder, lines []string, index, position, endIndex, endPosition int) {
+	for cursor := index; cursor <= endIndex; cursor++ {
+		start, stop := 0, len(lines[cursor])
+		if cursor == index {
+			start = position
+		}
+		if cursor == endIndex {
+			stop = endPosition
+		}
+		prose[cursor].WriteString(lines[cursor][start:stop])
+	}
 }
 
 // blankFencedCode replaces every fenced code block, and its fence markers,
@@ -649,11 +679,11 @@ func blankFencedCode(text string) []string {
 	blanked := make([]string, len(lines))
 	fence := ""
 	for index, line := range lines {
-		marker := fenceMarker(line)
+		marker, suffix := fenceMarker(line)
 		switch {
 		case fence == "" && marker != "":
 			fence = marker
-		case fence != "" && marker != "" && marker[0] == fence[0] && len(marker) >= len(fence):
+		case closesFence(fence, marker, suffix):
 			fence = ""
 		case fence == "":
 			blanked[index] = line
@@ -665,17 +695,32 @@ func blankFencedCode(text string) []string {
 	return blanked
 }
 
+// closesFence reports whether the marker opening line, and the suffix that
+// follows it, end the block opened by fence.
+//
+// CommonMark lets an opening fence carry an info string but requires the
+// closing one to carry nothing but spaces, so a ```go line inside an open
+// block is content rather than its end. Treating it as the end would put
+// the rest of the block back into live prose, where the headings and links
+// an example holds are read as claims the document makes.
+func closesFence(fence, marker, suffix string) bool {
+	return fence != "" && marker != "" && marker[0] == fence[0] &&
+		len(marker) >= len(fence) && strings.TrimLeft(suffix, " \t") == ""
+}
+
 // fenceMarker returns the leading run of backticks or tildes that opens or
-// closes a fenced code block, or "" if line is not a fence.
-func fenceMarker(line string) string {
+// closes a fenced code block, along with the rest of the line, or "" if
+// line is not a fence.
+func fenceMarker(line string) (marker, suffix string) {
 	trimmed := strings.TrimLeft(line, " ")
 	if len(line)-len(trimmed) > 3 {
-		return ""
+		return "", ""
 	}
 	if !strings.HasPrefix(trimmed, "```") && !strings.HasPrefix(trimmed, "~~~") {
-		return ""
+		return "", ""
 	}
-	return trimmed[:leadingRun(trimmed, trimmed[0])]
+	run := leadingRun(trimmed, trimmed[0])
+	return trimmed[:run], trimmed[run:]
 }
 
 // splitCodeSpans separates line into the contents of its inline code spans
@@ -704,25 +749,53 @@ func splitCodeSpans(line string) (spans []string, prose string) {
 }
 
 // codeSpanAt returns the byte length of the inline code span beginning at
-// index, delimiters included, or 0 if no span begins there. An unmatched
-// run of backticks is literal text rather than a span.
+// index and closing on the same line, delimiters included, or 0 if no such
+// span begins there. An unmatched run of backticks is literal text rather
+// than a span.
 func codeSpanAt(line string, index int) int {
-	if line[index] != '`' {
+	_, end, ok := codeSpanEnd([]string{line}, 0, index)
+	if !ok {
 		return 0
 	}
-	opening := leadingRun(line[index:], '`')
-	for scan := index + opening; scan < len(line); {
-		if line[scan] != '`' {
-			scan++
-			continue
-		}
-		run := leadingRun(line[scan:], '`')
-		if run == opening {
-			return scan + opening - index
-		}
-		scan += run
+	return end - index
+}
+
+// codeSpanEnd returns the line and the byte offset just past the inline
+// code span beginning at lines[index][position], or ok false if no span
+// begins there.
+//
+// A span closes at the first matching run of backticks, which CommonMark
+// allows to sit on a later line: `<!--` written across a line ending is
+// still code, and reading it as prose would open a comment that swallowed
+// every link and heading up to the next -->. A blank line ends the
+// paragraph, and with it any span still open.
+func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int, ok bool) {
+	if lines[index][position] != '`' {
+		return 0, 0, false
 	}
-	return 0
+	opening := leadingRun(lines[index][position:], '`')
+	scan := position + opening
+	for cursor := index; cursor < len(lines); cursor++ {
+		if cursor > index {
+			if strings.TrimSpace(lines[cursor]) == "" {
+				return 0, 0, false
+			}
+			scan = 0
+		}
+		line := lines[cursor]
+		for scan < len(line) {
+			if line[scan] != '`' {
+				scan++
+				continue
+			}
+			run := leadingRun(line[scan:], '`')
+			if run == opening {
+				return cursor, scan + opening, true
+			}
+			scan += run
+		}
+	}
+	return 0, 0, false
 }
 
 // leadingRun counts the leading repetitions of char in value.
