@@ -19,8 +19,10 @@ func Compare(
 ) check.Errors {
 	// DeepEqual distinguishes nil from empty slices, which is safe only
 	// because Validate forces every schema-1 slice and object field to be
-	// non-nil. A future schema that adds an optional array field must
-	// normalize here before comparing.
+	// non-nil — collections with a non-empty rule inherently, the optional
+	// ones through the explicit requireArray checks. A future schema that
+	// adds an optional array field must either require it present the same
+	// way or normalize here before comparing.
 	changed := !reflect.DeepEqual(baseline, candidate)
 	return continuity.Compare(
 		snapshot(baseline),

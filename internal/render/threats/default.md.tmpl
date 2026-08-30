@@ -2,27 +2,53 @@
 <details>
 <summary><code>{{htmlText .ID}}</code> - {{htmlText .Title}}</summary>
 
-**Description:** {{prose .Description}}
+**Source:** {{prose .Source}}
 
-**Severity:** `{{.Severity}}`
+**Prerequisites:** {{prose .Prerequisites}}
 
-**Disposition:** `{{.Disposition}}`
-{{if .DispositionRationale}}
-**Rationale:** {{prose .DispositionRationale}}
+**Action:** {{prose .Action}}
+
+**Impact:** {{prose .Impact}}
+
+**Abuse path:**
+
+{{range $index, $step := .AbusePath}}{{add1 $index}}. {{prose $step}}
+{{end}}
+**Likelihood:** `{{.Likelihood}}` - {{prose .LikelihoodRationale}}
+
+**Severity:** `{{.Severity}}` - {{prose .ImpactRationale}}
+
+**Priority:** `{{.Priority}}`
+
+**Treatment:** `{{.Treatment}}`
+{{if .TreatmentRationale}}
+**Treatment rationale:** {{prose .TreatmentRationale}}
 {{end}}
 **Owner:** {{owner .Owner}}
 
-**Affected assets:** {{inlineValues .AffectedAssets}}
+**Residual risk:** {{prose .ResidualRisk}}
 
-**Trust boundaries:** {{inlineValues .TrustBoundaries}}
+**Existing controls:** {{prose .ExistingControls}}
 
-**ADRs:** {{inlineValues .Mitigations.ADRs}}
+**Gaps:** {{prose .Gaps}}
 
-**Requirements:** {{inlineValues .Mitigations.Requirements}}
+**Recommended mitigations:** {{prose .RecommendedMitigations}}
 
-**Tests:** {{inlineValues .Mitigations.Tests}}
+**Detection ideas:** {{prose .DetectionIdeas}}
 
-**Risks:** {{inlineValues .Mitigations.Risks}}
+**Actors:** {{inlineValues .ActorLinks}}
+
+**Assets:** {{inlineValues .AssetLinks}}
+
+**Trust boundaries:** {{inlineValues .BoundaryLinks}}
+
+**Data flows:** {{inlineValues .FlowLinks}}
+
+**Controls:** {{inlineValues .ControlLinks}}
+
+**Risks:** {{inlineValues .RiskLinks}}
+
+**Planned evidence:** {{inlineValues .EvidenceLinks}}
 
 </details>
 
@@ -33,42 +59,80 @@
 
 - Document version: `{{.Document.DocumentVersion}}`
 - Last reviewed: `{{.Document.LastReviewed}}`
+- Status: `{{.Document.Status}}`
+- Accountable owner: {{table .Document.Owner}}
 - Threats: **{{len .Document.Threats}}**
-- Assets: **{{len .Document.Assets}}**
-- Trust boundaries: **{{len .Document.TrustBoundaries}}**
+- Controls: **{{len .Document.Controls}}**
+- Planned evidence: **{{len .Document.PlannedEvidence}}**
 
+## Summary
+
+{{prose .Document.Summary}}
+
+## Scope
+
+**In scope:**
+
+{{range .Document.Scope.InScope}}- {{prose .}}
+{{end}}
+**Out of scope:**
+
+{{range .Document.Scope.OutOfScope}}- {{prose .}}
+{{end}}
+## Assumptions
+
+{{if .Document.Assumptions}}| ID | Assumption | If it does not hold |
+| --- | --- | --- |
+{{range .Document.Assumptions}}| `{{.ID}}` | {{table .Statement}} | {{table .Effect}} |
+{{end}}{{else}}No assumptions recorded.
+{{end}}
+## Open questions
+
+{{if .Document.OpenQuestions}}{{range .Document.OpenQuestions}}- {{prose .}}
+{{end}}{{else}}No open questions recorded.
+{{end}}
+## Attacker model
+
+**Assumed capable of:**
+
+{{range .Document.AttackerModel.Capabilities}}- {{prose .}}
+{{end}}
+**Assumed not capable of:**
+
+{{range .Document.AttackerModel.NonCapabilities}}- {{prose .}}
+{{end}}
+## Actors
+
+| ID | Actor | Trust | Description |
+| --- | --- | --- | --- |
+{{range .Document.Actors}}| `{{.ID}}` | {{table .Name}} | {{table .Trust}} | {{table .Description}} |
+{{end}}
+## Architecture
+
+| ID | Component | Zone | Purpose | Evidence |
+| --- | --- | --- | --- | --- |
+{{range .Document.Components}}| `{{.ID}}` | {{table .Name}} | {{table .Zone}} | {{table .Purpose}} | {{table .Evidence}} |
+{{end}}
+### Diagrams
+
+{{if .Diagrams}}{{range .Diagrams}}- [{{linkLabel .Caption}}]({{linkDestination .Target}})
+{{end}}{{else}}No diagrams referenced.
+{{end}}
 ## Status summary
 
-| Severity | Count |
+| Priority | Count |
 | --- | ---: |
-{{range .SeverityCounts}}| `{{.Label}}` | {{.Value}} |
+{{range .PriorityCounts}}| `{{.Label}}` | {{.Value}} |
 {{end}}
-| Disposition | Count |
+| Treatment | Count |
 | --- | ---: |
-{{range .DispositionCounts}}| `{{.Label}}` | {{.Value}} |
+{{range .TreatmentCounts}}| `{{.Label}}` | {{.Value}} |
 {{end}}
-## Trust boundary index
+## Assets
 
-| ID | Boundary | Threats |
-| --- | --- | ---: |
-{{range .Boundaries}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Name}} | {{len .Threats}} |
-{{end}}
-{{range .Boundaries}}<a id="{{lower .ID}}"></a>
-<details>
-<summary><code>{{htmlText .ID}}</code> - {{htmlText .Name}} ({{len .Threats}})</summary>
-
-{{prose .Description}}
-
-{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
-
-</details>
-
-{{end}}
-## Asset index
-
-| ID | Asset | Threats |
-| --- | --- | ---: |
-{{range .Assets}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Name}} | {{len .Threats}} |
+| ID | Asset | Objective | Threats |
+| --- | --- | --- | ---: |
+{{range .Assets}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Name}} | {{table .Objective}} | {{len .Threats}} |
 {{end}}
 {{range .Assets}}<a id="{{lower .ID}}"></a>
 <details>
@@ -81,14 +145,138 @@
 </details>
 
 {{end}}
-{{range .SeveritySections}}{{if not .First}}
-{{end}}## Severity: {{.Severity}}
+## Trust boundaries
 
-| ID | Threat | Disposition | Owner | Assets | Boundaries |
-| --- | --- | --- | --- | --- | --- |
-{{range .Threats}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Title}} | `{{.Disposition}}` | {{owner .Owner}} | {{table (join .AffectedAssets ", ")}} | {{table (join .TrustBoundaries ", ")}} |
+| ID | Boundary | Source | Destination | State | Threats |
+| --- | --- | --- | --- | --- | ---: |
+{{range .Boundaries}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Name}} | `{{.Source}}` | `{{.Destination}}` | {{table .ImplementationState}} | {{len .Threats}} |
 {{end}}
-{{range .Threats}}{{template "threat" .}}{{end}}{{end}}## Supersessions
+{{range .Boundaries}}<a id="{{lower .ID}}"></a>
+<details>
+<summary><code>{{htmlText .ID}}</code> - {{htmlText .Name}} ({{len .Threats}})</summary>
+
+{{prose .Description}}
+
+**Data crossing:** {{inlineValues .Data}}
+
+**Channels:** {{inlineValues .Channels}}
+
+**Planned guarantees:**
+
+{{range .SecurityGuarantees}}- {{prose .}}
+{{end}}
+**Validation:**
+
+{{range .Validation}}- {{prose .}}
+{{end}}
+**Implementation state:** {{prose .ImplementationState}}
+
+**Evidence:** {{prose .Evidence}}
+
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+
+</details>
+
+{{end}}
+## Data flows
+
+{{range .Flows}}<a id="{{lower .ID}}"></a>
+<details>
+<summary><code>{{htmlText .ID}}</code> - {{htmlText .Name}} ({{len .Threats}})</summary>
+
+**Sequence:**
+
+{{range $index, $step := .Sequence}}{{add1 $index}}. {{prose $step}}
+{{end}}
+**Data:** {{inlineValues .Data}}
+
+**Boundaries crossed:** {{inlineValues .Boundaries}}
+
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+
+</details>
+
+{{end}}
+## Entry points
+
+| ID | Surface | Reached by | Boundary | Flows | Threats |
+| --- | --- | --- | --- | --- | ---: |
+{{range .EntryPoints}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Surface}} | {{table .Reached}} | `{{.Boundary}}` | {{table (join .Flows ", ")}} | {{len .Threats}} |
+{{end}}
+{{range .EntryPoints}}<a id="{{lower .ID}}"></a>
+<details>
+<summary><code>{{htmlText .ID}}</code> - {{htmlText .Surface}} ({{len .Threats}})</summary>
+
+**Notes:** {{prose .Notes}}
+
+**Evidence:** {{prose .Evidence}}
+
+{{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{lower $threat.ID}}){{end}}
+
+</details>
+
+{{end}}
+{{range .Sections}}{{if not .First}}
+{{end}}## Priority: {{.Priority}}
+
+| ID | Threat | Treatment | Owner | Assets | Boundaries |
+| --- | --- | --- | --- | --- | --- |
+{{range .Threats}}| [`{{.ID}}`](#{{lower .ID}}) | {{table .Title}} | `{{.Treatment}}` | {{owner .Owner}} | {{table (join .AssetLinks ", ")}} | {{table (join .BoundaryLinks ", ")}} |
+{{end}}
+{{range .Threats}}{{template "threat" .}}{{end}}{{end}}## Controls
+
+| ID | Control | Status | Owner | Requirements | Decisions | Risks | Evidence | Threats |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+{{range .Controls}}| <a id="{{lower .ID}}"></a>`{{.ID}}` | {{table .Title}} | `{{.Status}}` | {{owner .Owner}} | {{table (join .RequirementLinks ", ")}} | {{table (join .DecisionLinks ", ")}} | {{table (join .RiskLinks ", ")}} | {{table (join .EvidenceLinks ", ")}} | {{table (join .Threats ", ")}} |
+{{end}}
+{{range .Controls}}<details>
+<summary><code>{{htmlText .ID}}</code> - {{htmlText .Title}}</summary>
+
+{{prose .Description}}
+
+**Implementation note:** {{prose .ImplementationNote}}
+
+</details>
+
+{{end}}
+## Planned evidence
+
+| ID | Evidence | Level | Status | Owner | Threats | Controls |
+| --- | --- | --- | --- | --- | --- | --- |
+{{range .Evidence}}| `{{.ID}}` | {{table .Title}} | `{{.Level}}` | `{{.Status}}` | {{owner .Owner}} | {{table (join .ThreatLinks ", ")}} | {{table (join .Controls ", ")}} |
+{{end}}
+## Decisions
+
+{{if .Decisions}}| ID | Decision | Status | Controls | Reference |
+| --- | --- | --- | --- | --- |
+{{range .Decisions}}| `{{.ID}}` | {{table .Title}} | `{{.Status}}` | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
+{{end}}{{else}}No decisions recorded.
+{{end}}
+## Risks and residual ownership
+
+{{if .Risks}}| ID | Risk | Threats | Controls | Reference |
+| --- | --- | --- | --- | --- |
+{{range .Risks}}| `{{.ID}}` | {{table .Title}} | {{table (join .Threats ", ")}} | {{table (join .Controls ", ")}} | [{{linkLabel .Target}}]({{linkDestination .Target}}) |
+{{end}}{{else}}No risk records referenced.
+{{end}}
+## Observability
+
+{{if .Document.Observability}}{{range .Document.Observability}}### {{prose .Surface}}
+
+**Required signals:**
+
+{{range .Signals}}- {{prose .}}
+{{end}}
+**Must never be logged:**
+
+{{range .Redaction}}- {{prose .}}
+{{end}}
+**Alert condition:** {{prose .AlertCondition}}
+
+**Controls:** {{inlineValues .ControlLinks}}
+
+{{end}}{{else}}No observability expectations recorded.
+{{end}}## Supersessions
 
 {{if .Document.Supersessions}}| Retired ID | Replacement IDs | Rationale |
 | --- | --- | --- |

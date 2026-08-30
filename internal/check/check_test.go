@@ -297,3 +297,141 @@ func TestStringListRejectsControlBearingItems(t *testing.T) {
 		}
 	}
 }
+
+func TestLexicalURI(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr string
+	}{
+		{name: "https URL", value: "https://standards.example.org/spec#section-3"},
+		{name: "repository-relative path", value: "../plan.md"},
+		{
+			name:    "embedded space",
+			value:   "https://example.org/a b",
+			wantErr: "contains whitespace, a control character, or a backslash",
+		},
+		{
+			name:    "backslash",
+			value:   `https://example.org/a\b`,
+			wantErr: "contains whitespace, a control character, or a backslash",
+		},
+		{
+			name:    "control character",
+			value:   "https://example.org/a\x00b",
+			wantErr: "contains whitespace, a control character, or a backslash",
+		},
+		{
+			name:    "user information",
+			value:   "https://user@example.org/a",
+			wantErr: "opaque URIs, user information, ports, and queries are not allowed",
+		},
+		{
+			name:    "port",
+			value:   "https://example.org:8443/a",
+			wantErr: "opaque URIs, user information, ports, and queries are not allowed",
+		},
+		{
+			name:    "query",
+			value:   "https://example.org/a?b=c",
+			wantErr: "opaque URIs, user information, ports, and queries are not allowed",
+		},
+		{
+			name:    "opaque URI",
+			value:   "mailto:someone@example.org",
+			wantErr: "opaque URIs, user information, ports, and queries are not allowed",
+		},
+		{
+			// Percent-encoded control bytes survive url.Parse and reappear
+			// decoded in Path, so the post-parse sweep is what catches them.
+			name:    "percent-encoded control character",
+			value:   "https://example.org/a%00b",
+			wantErr: "contains encoded whitespace or a control character",
+		},
+		{
+			name:    "percent-encoded newline in the fragment",
+			value:   "https://example.org/a#b%0Ac",
+			wantErr: "contains encoded whitespace or a control character",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := check.LexicalURI(test.value)
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("expected %q, got %v", test.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestRepoRelativePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr string
+	}{
+		{name: "plain path", value: "diagrams/data-flow.md"},
+		{
+			// Parent segments are deliberately allowed: this tool never
+			// opens the path, and sibling documents are a normal target.
+			name:  "parent segment",
+			value: "../plan.md",
+		},
+		{name: "blank", value: "  ", wantErr: "expected a non-empty string"},
+		{
+			name:    "absolute",
+			value:   "/etc/passwd",
+			wantErr: "expected a relative path",
+		},
+		{
+			name:    "scheme",
+			value:   "javascript:alert(1)",
+			wantErr: "contains a backslash or a scheme",
+		},
+		{
+			name:    "backslash",
+			value:   `diagrams\flow.md`,
+			wantErr: "contains a backslash or a scheme",
+		},
+		{
+			name:    "embedded space",
+			value:   "diagrams/data flow.md",
+			wantErr: "contains whitespace or a control character",
+		},
+		{
+			name:    "control character",
+			value:   "diagrams/flow\x1b.md",
+			wantErr: "contains whitespace or a control character",
+		},
+		{
+			name:    "line separator",
+			value:   "diagrams/flow .md",
+			wantErr: "contains whitespace or a control character",
+		},
+		{
+			name:    "oversized",
+			value:   strings.Repeat("a", check.MaxStringBytes+1),
+			wantErr: "exceeds 16384-byte limit",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := check.RepoRelativePath(test.value)
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("expected %q, got %v", test.wantErr, err)
+			}
+		})
+	}
+}

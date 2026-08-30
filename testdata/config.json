@@ -3,7 +3,11 @@
   "milestone_pattern": "^M(?:[0-9]|1[01])$",
   "issue_pattern": "^#[1-9][0-9]*$",
   "risk_pattern": "^R(?:[1-9]|1[0-2])$",
-  "workstreams": ["Protocol", "Platform"],
+  "owner_pattern": "^@[a-z][a-z0-9-]*$",
+  "workstreams": [
+    "Protocol",
+    "Platform"
+  ],
   "issue_url_base": "https://github.com/example/project/issues/",
   "generator_name": "tracedoc",
   "version_transitions": {
@@ -12,13 +16,31 @@
     "require_major_on_schema_change": true
   },
   "requirements": {
-    "required_standards": ["EXAMPLE-CORE", "RFCX", "LOCAL-PLAN"],
-    "standard_sources": [
-      { "key": "EXAMPLE-CORE", "host": "standards.example.org" },
-      { "key": "RFCX", "host": "www.rfc-editor.org" },
-      { "key": "LOCAL-PLAN", "path": "../plan.md" }
+    "required_standards": [
+      "EXAMPLE-CORE",
+      "RFCX",
+      "LOCAL-PLAN"
     ],
-    "verification_levels": ["unit", "integration", "adversarial", "documentation"],
+    "standard_sources": [
+      {
+        "key": "EXAMPLE-CORE",
+        "host": "standards.example.org"
+      },
+      {
+        "key": "RFCX",
+        "host": "www.rfc-editor.org"
+      },
+      {
+        "key": "LOCAL-PLAN",
+        "path": "../plan.md"
+      }
+    ],
+    "verification_levels": [
+      "unit",
+      "integration",
+      "adversarial",
+      "documentation"
+    ],
     "render": {
       "source_name": "matrix.json",
       "regenerate_command": "tracedoc render -config config.json -doc matrix.json -output matrix.md",
@@ -26,6 +48,38 @@
     }
   },
   "threat_model": {
+    "document_statuses": [
+      "draft",
+      "accepted"
+    ],
+    "control_statuses": [
+      "planned",
+      "in-progress",
+      "implemented"
+    ],
+    "evidence_levels": [
+      "unit",
+      "integration",
+      "adversarial",
+      "documentation"
+    ],
+    "evidence_statuses": [
+      "planned",
+      "deferred"
+    ],
+    "reference_hosts": [
+      "decisions.example.org",
+      "diagrams.example.org"
+    ],
+    "coverage": {
+      "require_asset_coverage": true,
+      "require_boundary_coverage": true,
+      "require_flow_coverage": true,
+      "require_entry_point_coverage": true,
+      "require_control_coverage": true,
+      "require_risk_coverage": true,
+      "require_evidence_per_threat": true
+    },
     "render": {
       "source_name": "threats.json",
       "regenerate_command": "tracedoc render -config config.json -doc threats.json -output threats.md",

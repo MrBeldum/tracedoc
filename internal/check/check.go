@@ -5,7 +5,9 @@
 package check
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -170,4 +172,61 @@ func SortedSetDifference(left, right map[string]struct{}) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// LexicalURI runs the schema-owned URI format and injection checks that
+// apply to every URI any document may carry, regardless of which source or
+// host policy governs it. Callers layer their own provenance rule — an
+// exact standard host, a consumer host allowlist — on top of the parsed
+// result. Keeping the lexical half here means a new document type cannot
+// accidentally accept a URI shape the older ones reject.
+func LexicalURI(value string) (*url.URL, error) {
+	if strings.TrimSpace(value) != value ||
+		strings.Contains(value, `\`) ||
+		strings.IndexFunc(value, func(r rune) bool {
+			return unicode.IsControl(r) || unicode.IsSpace(r)
+		}) >= 0 {
+		return nil, errors.New("contains whitespace, a control character, or a backslash")
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URI: %w", err)
+	}
+	if parsed.Opaque != "" || parsed.User != nil || parsed.Port() != "" || parsed.RawQuery != "" {
+		return nil, errors.New("opaque URIs, user information, ports, and queries are not allowed")
+	}
+	if strings.IndexFunc(parsed.Path+parsed.Fragment, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.IsSpace(r)
+	}) >= 0 {
+		return nil, errors.New("contains encoded whitespace or a control character")
+	}
+	return parsed, nil
+}
+
+// RepoRelativePath validates a repository-relative reference that this tool
+// echoes into rendered Markdown but never opens. It deliberately does not
+// reject ".." segments: documents legitimately point at sibling files, and
+// there is no local traversal to prevent while the path is never resolved.
+// Re-derive these bounds before making anything open the path.
+func RepoRelativePath(value string) error {
+	if !Nonempty(value) {
+		return errors.New("expected a non-empty string")
+	}
+	if len(value) > MaxStringBytes {
+		return fmt.Errorf("exceeds %d-byte limit", MaxStringBytes)
+	}
+	if strings.IndexFunc(value, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.IsSpace(r) ||
+			unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
+	}) >= 0 {
+		return errors.New("contains whitespace or a control character")
+	}
+	if strings.ContainsAny(value, `\`) || strings.Contains(value, ":") {
+		return errors.New("contains a backslash or a scheme")
+	}
+	if strings.HasPrefix(value, "/") {
+		return errors.New("expected a relative path")
+	}
+	return nil
 }

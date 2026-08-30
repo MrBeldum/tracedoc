@@ -6,6 +6,7 @@ import (
 
 	"github.com/sofired/tracedoc/internal/document"
 	"github.com/sofired/tracedoc/internal/testsupport"
+	"github.com/sofired/tracedoc/internal/threats"
 )
 
 func loadFixtureConfig(t *testing.T) *Config {
@@ -48,6 +49,28 @@ func TestFixtureConfigLoads(t *testing.T) {
 	}
 	if len(threatsPolicy.Workstreams) != 2 || threatsPolicy.Risk == nil {
 		t.Fatalf("unexpected threats policy: %#v", threatsPolicy)
+	}
+	if threatsPolicy.Owner == nil || !threatsPolicy.Owner.MatchString("@security-lead") ||
+		threatsPolicy.Owner.MatchString("Security Lead") {
+		t.Fatal("owner pattern not compiled as configured")
+	}
+	if len(threatsPolicy.DocumentStatuses) != 2 ||
+		len(threatsPolicy.ControlStatuses) != 3 ||
+		len(threatsPolicy.EvidenceLevels) != 4 ||
+		len(threatsPolicy.EvidenceStatuses) != 2 ||
+		len(threatsPolicy.ReferenceHosts) != 2 {
+		t.Fatalf("unexpected threat-model vocabularies: %#v", threatsPolicy)
+	}
+	if threatsPolicy.Coverage != (threats.Coverage{
+		Assets:      true,
+		Boundaries:  true,
+		Flows:       true,
+		EntryPoints: true,
+		Controls:    true,
+		Risks:       true,
+		Evidence:    true,
+	}) {
+		t.Fatalf("unexpected coverage switches: %#v", threatsPolicy.Coverage)
 	}
 
 	rules := config.TransitionRules()
@@ -247,6 +270,43 @@ func TestConfigRejections(t *testing.T) {
 			want:   "expected a lowercase DNS host name",
 			mutate: func(c *Config) { c.Requirements.StandardSources[0].Host = "localhost" },
 		},
+		{
+			name:   "missing owner pattern",
+			want:   "owner_pattern: expected a non-empty pattern",
+			mutate: func(c *Config) { c.OwnerPattern = "" },
+		},
+		{
+			name:   "unanchored owner pattern",
+			want:   "owner_pattern: expected an anchored pattern",
+			mutate: func(c *Config) { c.OwnerPattern = "@[a-z]+" },
+		},
+		{
+			name:   "empty document statuses",
+			want:   "threat_model.document_statuses: expected a non-empty array",
+			mutate: func(c *Config) { c.ThreatModel.DocumentStatuses = nil },
+		},
+		{
+			name:   "malformed control status",
+			want:   `threat_model.control_statuses[0]: invalid value "Planned"`,
+			mutate: func(c *Config) { c.ThreatModel.ControlStatuses[0] = "Planned" },
+		},
+		{
+			name:   "duplicate evidence level",
+			want:   "threat_model.evidence_levels[1]: duplicate value",
+			mutate: func(c *Config) { c.ThreatModel.EvidenceLevels[1] = c.ThreatModel.EvidenceLevels[0] },
+		},
+		{
+			name:   "single-label reference host",
+			want:   "threat_model.reference_hosts[0]: expected a lowercase DNS host name",
+			mutate: func(c *Config) { c.ThreatModel.ReferenceHosts[0] = "localhost" },
+		},
+		{
+			name: "duplicate reference host",
+			want: `threat_model.reference_hosts[1]: duplicate host`,
+			mutate: func(c *Config) {
+				c.ThreatModel.ReferenceHosts[1] = c.ThreatModel.ReferenceHosts[0]
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -262,5 +322,24 @@ func TestConfigRejectsUnknownMember(t *testing.T) {
 	_, err := Load(testsupport.WriteRaw(t, []byte(`{"config_version":1,"extra":true}`)))
 	if err == nil || !strings.Contains(err.Error(), `unknown field "extra"`) {
 		t.Fatalf("expected unknown-field rejection, got %v", err)
+	}
+}
+
+// TestEmptyReferenceHostsIsLegal covers the deliberate default: a consumer
+// that declares no reference hosts accepts repository-relative references
+// only, which is the reproducible choice rather than a misconfiguration.
+func TestEmptyReferenceHostsIsLegal(t *testing.T) {
+	config := loadFixtureConfig(t)
+	config.ThreatModel.ReferenceHosts = nil
+	reloaded, err := Load(testsupport.WriteJSON(t, config))
+	if err != nil {
+		t.Fatalf("config without reference hosts should load: %v", err)
+	}
+	pol, err := reloaded.ThreatsPolicy()
+	if err != nil {
+		t.Fatalf("compile threats policy: %v", err)
+	}
+	if len(pol.ReferenceHosts) != 0 {
+		t.Fatalf("expected an empty allowlist, got %#v", pol.ReferenceHosts)
 	}
 }

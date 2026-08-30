@@ -1,14 +1,11 @@
 package matrix
 
 import (
-	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/sofired/tracedoc/internal/check"
 	"github.com/sofired/tracedoc/internal/document"
@@ -189,7 +186,7 @@ func (v *validator) citations(
 		if standardKnown {
 			v.sourceURI(itemLocation+".uri", item.Standard, item.URI)
 		} else if v.RequiredString(itemLocation+".uri", item.URI) {
-			if _, err := lexicalURI(item.URI); err != nil {
+			if _, err := check.LexicalURI(item.URI); err != nil {
 				v.Add(itemLocation+".uri", err.Error())
 			}
 		}
@@ -344,35 +341,8 @@ func (v *validator) sourceURI(location, standardKey, value string) {
 	}
 }
 
-// lexicalURI runs the schema-owned URI format and injection checks that
-// apply to every citation and standard URI regardless of which source
-// policy (if any) governs its standard key.
-func lexicalURI(value string) (*url.URL, error) {
-	if strings.TrimSpace(value) != value ||
-		strings.Contains(value, `\`) ||
-		strings.IndexFunc(value, func(r rune) bool {
-			return unicode.IsControl(r) || unicode.IsSpace(r)
-		}) >= 0 {
-		return nil, errors.New("contains whitespace, a control character, or a backslash")
-	}
-
-	parsed, err := url.Parse(value)
-	if err != nil {
-		return nil, fmt.Errorf("invalid URI: %w", err)
-	}
-	if parsed.Opaque != "" || parsed.User != nil || parsed.Port() != "" || parsed.RawQuery != "" {
-		return nil, errors.New("opaque URIs, user information, ports, and queries are not allowed")
-	}
-	if strings.IndexFunc(parsed.Path+parsed.Fragment, func(r rune) bool {
-		return unicode.IsControl(r) || unicode.IsSpace(r)
-	}) >= 0 {
-		return nil, errors.New("contains encoded whitespace or a control character")
-	}
-	return parsed, nil
-}
-
 func validateSourceURI(policy Policy, standardKey, value string) error {
-	parsed, err := lexicalURI(value)
+	parsed, err := check.LexicalURI(value)
 	if err != nil {
 		return err
 	}

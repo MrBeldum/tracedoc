@@ -193,12 +193,17 @@ func TestValidateThreatModel(t *testing.T) {
 		t.Fatalf("expected missing -requirements rejection, got %d: %s", exitCode, stderr)
 	}
 
-	// Without requirement links, -requirements is optional.
+	// Without requirement links, -requirements is optional. Requirement
+	// links hang off controls, and every control must keep at least one
+	// traceability link, so the cleared category is replaced rather than
+	// simply emptied.
 	unlinked := loadFixtureThreats(t)
-	for index := range unlinked.Threats {
-		unlinked.Threats[index].Mitigations.Requirements = []string{}
+	for index := range unlinked.Controls {
+		unlinked.Controls[index].RequirementLinks = []string{}
+		if len(unlinked.Controls[index].DecisionLinks) == 0 {
+			unlinked.Controls[index].DecisionLinks = []string{"ADR-101"}
+		}
 	}
-	unlinked.Threats[0].Mitigations.ADRs = []string{"ADR-001"}
 	exitCode, stdout, stderr = runCommand(
 		t, "validate", "-config", config, "-doc", testsupport.WriteJSON(t, unlinked),
 	)
@@ -220,6 +225,13 @@ func TestValidateThreatModel(t *testing.T) {
 			},
 		},
 		{
+			name: "unsupported likelihood",
+			want: `likelihood: unsupported value "certain"`,
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].Likelihood = "certain"
+			},
+		},
+		{
 			name: "unsupported severity",
 			want: `severity: unsupported value "catastrophic"`,
 			mutate: func(doc *threats.Document) {
@@ -227,10 +239,17 @@ func TestValidateThreatModel(t *testing.T) {
 			},
 		},
 		{
-			name: "unsupported disposition",
-			want: `disposition: unsupported value "ignored"`,
+			name: "unsupported priority",
+			want: `priority: unsupported value "urgent"`,
 			mutate: func(doc *threats.Document) {
-				doc.Threats[0].Disposition = "ignored"
+				doc.Threats[0].Priority = "urgent"
+			},
+		},
+		{
+			name: "unsupported treatment",
+			want: `treatment: unsupported value "ignored"`,
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].Treatment = "ignored"
 			},
 		},
 		{
@@ -241,10 +260,61 @@ func TestValidateThreatModel(t *testing.T) {
 			},
 		},
 		{
+			name: "missing accountable principal",
+			want: "owner.principal: expected a non-empty string",
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].Owner.Principal = ""
+			},
+		},
+		{
 			name: "unresolved requirement link",
 			want: `unknown requirement "MISSING-001"`,
 			mutate: func(doc *threats.Document) {
-				doc.Threats[0].Mitigations.Requirements = []string{"MISSING-001"}
+				doc.Controls[0].RequirementLinks = []string{"MISSING-001"}
+			},
+		},
+		{
+			name: "unresolved control link",
+			want: `unknown control "CTRL-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].ControlLinks = []string{"CTRL-404"}
+			},
+		},
+		{
+			name: "unresolved decision link",
+			want: `unknown decision "ADR-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.Controls[1].DecisionLinks = []string{"ADR-404"}
+			},
+		},
+		{
+			name: "unresolved risk link",
+			want: `unknown risk "R9"`,
+			mutate: func(doc *threats.Document) {
+				doc.Threats[1].RiskLinks = []string{"R9"}
+			},
+		},
+		{
+			name: "unresolved planned-evidence link",
+			want: `unknown planned evidence "EVD-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].EvidenceLinks = []string{"EVD-404"}
+			},
+		},
+		{
+			name: "unresolved component in a trust boundary",
+			want: `unknown component "COMP-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.TrustBoundaries[0].Source = "COMP-404"
+			},
+		},
+		{
+			name: "declared asset that no threat analyses",
+			want: `asset "AST-002" is declared but never analysed`,
+			mutate: func(doc *threats.Document) {
+				for index := range doc.Threats {
+					doc.Threats[index].AssetLinks = []string{"AST-001"}
+				}
 			},
 		},
 	}
