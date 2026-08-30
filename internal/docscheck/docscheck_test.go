@@ -234,6 +234,33 @@ func TestCorrectDocumentationIsNeverReported(t *testing.T) {
 		}))
 	})
 
+	t.Run("an unrelated backtick pairing does not un-blank a comment", func(t *testing.T) {
+		// The apostrophe backtick and the one opening `git status` close
+		// on each other across the line ending, and the comment falls
+		// inside the span they form. Keeping that span's contents would
+		// hand the commented-out link back to the link check as a claim.
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nDon`t forget: <!-- see [gone](docs/gone.md) for details --> then run\n`git status` to check.\n",
+		}))
+	})
+
+	t.Run("a link quoted in a span crossing several lines is not a claim", func(t *testing.T) {
+		// The span opens on the first line and closes on the third, so
+		// the link on the second is code that GitHub renders literally.
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nWrite `a\n[gone](docs/gone.md)\nb` to quote a link.\n",
+		}))
+	})
+
+	t.Run("a code span does not carry across a whitespace-only line", func(t *testing.T) {
+		// A line of spaces ends the paragraph exactly as an empty one
+		// does, so the backtick opens nothing and the delimiter below it
+		// is a real comment.
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nWrite `<!--\n   \n` to open one, then see [gone](docs/gone.md).\n",
+		}))
+	})
+
 	t.Run("a run block written with a chomping indicator", func(t *testing.T) {
 		requireClean(t, checkAll(t, map[string]string{
 			".github/workflows/ci.yml": strings.Replace(fixtureWorkflow, "run: |\n", "run: |-\n", 1),
@@ -361,6 +388,17 @@ func TestCheckNamedPaths(t *testing.T) {
 		requireReport(t, errs, "README.md:3", "cmd/tracedoc/cli.go", "does not exist")
 	})
 
+	t.Run("a path quoted after an unclosed run is still found", func(t *testing.T) {
+		// The leading run of two never closes, so it is literal text and
+		// no span opens inside it. Resuming at its second backtick would
+		// pair that one with the opening delimiter of the real span and
+		// leave the path it quotes outside any span, unchecked.
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nWrite ``unclosed and `cmd/tracedoc/cli.go` here.\n",
+		})
+		requireReport(t, errs, "README.md:3", "cmd/tracedoc/cli.go", "does not exist")
+	})
+
 	t.Run("a named directory that exists passes", func(t *testing.T) {
 		errs := checkAll(t, map[string]string{
 			"README.md": "# tracedoc\n\nSources live in `internal/docscheck/` and `cmd/tracedoc/main.go`.\n",
@@ -418,6 +456,33 @@ func TestDetectionIsNotDefeatedByShape(t *testing.T) {
 			"README.md": "# tracedoc\n\nWrite `<!--\n` to open one, then see [gone](docs/gone.md).\n",
 		})
 		requireOnlyReport(t, errs, "README.md:4", "docs/gone.md", "does not exist")
+	})
+
+	t.Run("a span opened before a comment does not consume its terminator", func(t *testing.T) {
+		// A comment's body is raw HTML, so the backtick inside it is text
+		// rather than a delimiter. Pairing it with the one below would
+		// eat the --> and leave the rest of the document commented out.
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n<!-- a note `here --> and\nmore` prose\n[gone](docs/gone.md)\n",
+		})
+		requireOnlyReport(t, errs, "README.md:5", "docs/gone.md", "does not exist")
+	})
+
+	t.Run("a stray backtick inside a comment does not swallow its end", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n<!-- a`b --> see\nc`d and then [gone](docs/gone.md) too.\n",
+		})
+		requireOnlyReport(t, errs, "README.md:4", "docs/gone.md", "does not exist")
+	})
+
+	t.Run("a claim after a fence closed with trailing spaces is checked", func(t *testing.T) {
+		// CommonMark allows spaces after a closing marker. Requiring an
+		// exactly bare line would leave the fence open to the end of the
+		// file and blank every claim below it.
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n```md\nexample\n```  \nSee [gone](docs/gone.md).\n",
+		})
+		requireOnlyReport(t, errs, "README.md:6", "docs/gone.md", "does not exist")
 	})
 
 	t.Run("a self-check command split across lines fails loudly", func(t *testing.T) {
