@@ -18,6 +18,22 @@
 // behavior ("the template anchors every entity") is outside what any
 // documentation linter can reach and belongs in an executable assertion
 // next to the behavior itself.
+//
+// Known limits, so a reader does not mistake silence for a guarantee:
+//
+//   - Only inline links are resolved. Reference-style links
+//     ("[text][ref]"), autolinks, angle-bracket destinations, and link
+//     text containing nested brackets are not recognized, so a dead link
+//     written that way goes unreported. None appear in this repository's
+//     documentation today.
+//   - Indented (non-fenced) code blocks are not treated as examples. Every
+//     example here uses a fence.
+//   - The checks trust the working tree's file identity, not only its path
+//     text. Paths are resolved through the given fs.FS, which follows
+//     symlinks, so a symlink committed into the tree could point outside
+//     it. That is acceptable because this package only ever runs over
+//     reviewed, version-controlled content in CI, and reports existence
+//     rather than content.
 package docscheck
 
 import (
@@ -77,8 +93,10 @@ func CheckAll(fsys fs.FS) check.Errors {
 // It excludes testdata: those Markdown files are golden renderings of
 // synthetic fixture documents, already pinned byte-for-byte by
 // `render -check`, and their links point into a fictional consumer
-// repository rather than this one. It also excludes dot-directories other
-// than .github, which hold tool state rather than documentation.
+// repository rather than this one. It excludes dist, the gitignored
+// directory the release workflow builds artifacts into, which a
+// contributor may have populated locally. And it excludes dot-directories
+// other than .github, which hold tool state rather than documentation.
 func DocumentFiles(fsys fs.FS) ([]string, error) {
 	var files []string
 	err := fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, err error) error {
@@ -191,12 +209,16 @@ func CheckNamedPaths(fsys fs.FS, files []string) check.Errors {
 			continue
 		}
 		for index, line := range lines {
-			for _, match := range backtickSpan.FindAllStringSubmatch(line, -1) {
-				candidate := match[1]
-				if !isRepositoryPath(candidate, roots) {
+			spans, _ := splitCodeSpans(line)
+			for _, candidate := range spans {
+				// A trailing "#L120" or "#anchor" names a place inside a
+				// file rather than a different file, so the fragment is
+				// dropped before the path is resolved.
+				target, _, _ := strings.Cut(candidate, "#")
+				if !isRepositoryPath(target, roots) {
 					continue
 				}
-				if _, err := fs.Stat(fsys, strings.TrimSuffix(candidate, "/")); err != nil {
+				if _, err := fs.Stat(fsys, strings.TrimSuffix(target, "/")); err != nil {
 					checker.Addf(
 						fmt.Sprintf("%s:%d", file, index+1),
 						"names %q, which does not exist in the repository",
@@ -294,8 +316,8 @@ func CheckSelfCheckCommands(fsys fs.FS) check.Errors {
 	return checker.Errs
 }
 
-// reportCommandDrift records the first position at which actual departs
-// from expected, naming the source of each list.
+// reportCommandDrift records every position at which actual departs from
+// expected, naming the source of each list.
 func reportCommandDrift(checker *check.Checker, location string, actual []string, referenceName string, expected []string) {
 	for index := range max(len(actual), len(expected)) {
 		switch {
@@ -357,12 +379,17 @@ func workflowSelfCheckCommands(fsys fs.FS, name string) ([]string, error) {
 	}
 
 	block := -1
+	stepIndent := leadingSpaces(lines[step])
 	for index := step + 1; index < len(lines); index++ {
 		trimmed := strings.TrimSpace(lines[index])
-		if strings.HasPrefix(trimmed, "- name:") {
+		// Any sequence item at the step's own indentation starts the next
+		// step, named or not.
+		if strings.HasPrefix(trimmed, "- ") && leadingSpaces(lines[index]) <= stepIndent {
 			break
 		}
-		if trimmed == "run: |" {
+		// "|-" and "|+" are the chomping variants of the same block
+		// scalar, and carry the same commands.
+		if strings.HasPrefix(trimmed, "run: |") {
 			block = index
 			break
 		}
@@ -381,9 +408,23 @@ func workflowSelfCheckCommands(fsys fs.FS, name string) ([]string, error) {
 		if leadingSpaces(line) <= indent {
 			break
 		}
-		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, selfCheckPrefix) {
-			commands = append(commands, trimmed)
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, selfCheckPrefix) {
+			continue
 		}
+		// A command split with a trailing backslash would be collected
+		// truncated, and then reported as drift against the single-line
+		// form in AGENTS.md — a disagreement between two spellings of the
+		// same command. Fail on the spelling instead of on the phantom
+		// drift.
+		if strings.HasSuffix(trimmed, `\`) {
+			return nil, fmt.Errorf(
+				"a self-check command in %s is continued onto the next line with a backslash;"+
+					" keep each command on one line so it can be compared with %s",
+				name, agentsFile,
+			)
+		}
+		commands = append(commands, trimmed)
 	}
 	return commands, nil
 }
@@ -449,10 +490,16 @@ func isRepositoryPath(candidate string, roots map[string]struct{}) bool {
 	if trimmed == "" || strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "-") {
 		return false
 	}
-	first, _, _ := strings.Cut(trimmed, "/")
-	if first == "." || first == ".." {
-		return false
+	// Reject "." and ".." anywhere, not just as the first segment. Every
+	// fs.FS this package is given rejects them too, but relying on that
+	// leaves the guarantee to the caller's choice of filesystem rather
+	// than to this function.
+	for segment := range strings.SplitSeq(trimmed, "/") {
+		if segment == "." || segment == ".." {
+			return false
+		}
 	}
+	first, _, _ := strings.Cut(trimmed, "/")
 	_, known := roots[first]
 	return known
 }
@@ -463,9 +510,6 @@ func isRepositoryPath(candidate string, roots map[string]struct{}) bool {
 const notInAPath = " \t*?[]{}<>$\\:\"'|()!,;&"
 
 var (
-	// backtickSpan matches one inline code span and captures its content.
-	backtickSpan = regexp.MustCompile("`([^`\n]+)`")
-
 	// atxHeading matches an ATX heading, capturing its text without the
 	// optional closing hash sequence. This repository uses no setext
 	// headings.
@@ -481,8 +525,12 @@ var (
 	linkText = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
 
 	// changelogHeading matches a changelog release heading, capturing the
-	// version and whatever follows the separating dash.
-	changelogHeading = regexp.MustCompile(`^##[ \t]+(\S+)(?:[ \t]+[-—][ \t]+(.*?))?[ \t]*$`)
+	// version and whatever follows the separating dash. The brackets are
+	// optional because Keep a Changelog — which CHANGELOG.md names as its
+	// model — writes "## [1.2.3] - 2026-08-02", and a contributor moving
+	// this file toward the format it claims to follow must not trip the
+	// check.
+	changelogHeading = regexp.MustCompile(`^##[ \t]+\[?([^\]\s]+)\]?(?:[ \t]+[-—][ \t]+(.*?))?[ \t]*$`)
 
 	// uriScheme matches the leading scheme of an absolute URI.
 	uriScheme = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.\-]*:`)
@@ -501,7 +549,41 @@ func readDocument(fsys fs.FS, name string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return blankFencedCode(string(data)), nil
+	return blankHTMLComments(blankFencedCode(string(data))), nil
+}
+
+// blankHTMLComments empties every HTML comment span, keeping one entry per
+// source line. GitHub renders none of it, so a link or heading left inside
+// a comment is a note to a future editor rather than a claim the document
+// makes. Fences are blanked first, so "<!--" shown inside a code example
+// does not open a comment.
+func blankHTMLComments(lines []string) []string {
+	blanked := make([]string, len(lines))
+	inComment := false
+	for index, line := range lines {
+		var prose strings.Builder
+		for line != "" {
+			if inComment {
+				end := strings.Index(line, "-->")
+				if end < 0 {
+					break
+				}
+				inComment = false
+				line = line[end+len("-->"):]
+				continue
+			}
+			start := strings.Index(line, "<!--")
+			if start < 0 {
+				prose.WriteString(line)
+				break
+			}
+			prose.WriteString(line[:start])
+			line = line[start+len("<!--"):]
+			inComment = true
+		}
+		blanked[index] = prose.String()
+	}
+	return blanked
 }
 
 // blankFencedCode replaces every fenced code block, and its fence markers,
@@ -521,6 +603,9 @@ func blankFencedCode(text string) []string {
 			fence = ""
 		case fence == "":
 			blanked[index] = line
+		default:
+			// Inside a fence and not closing it: the pre-allocated empty
+			// string already stands in for this line.
 		}
 	}
 	return blanked
@@ -536,7 +621,59 @@ func fenceMarker(line string) string {
 	if !strings.HasPrefix(trimmed, "```") && !strings.HasPrefix(trimmed, "~~~") {
 		return ""
 	}
-	return trimmed[:len(trimmed)-len(strings.TrimLeft(trimmed, trimmed[:1]))]
+	return trimmed[:leadingRun(trimmed, trimmed[0])]
+}
+
+// splitCodeSpans separates line into the contents of its inline code spans
+// and the prose that remains once those spans are removed.
+//
+// A span is a run of backticks closed by a run of the same length, which
+// is what lets prose about Markdown quote Markdown: “​`[text](url)`​“
+// shows link syntax literally, and a checker that only understood single
+// backticks would read the inner text as a live link and report it as
+// dead. This repository's documentation is partly about Markdown, so that
+// is a real shape here rather than a theoretical one.
+func splitCodeSpans(line string) (spans []string, prose string) {
+	var rest strings.Builder
+	for index := 0; index < len(line); {
+		if line[index] != '`' {
+			rest.WriteByte(line[index])
+			index++
+			continue
+		}
+		opening := leadingRun(line[index:], '`')
+		closing := -1
+		for scan := index + opening; scan < len(line); {
+			if line[scan] != '`' {
+				scan++
+				continue
+			}
+			run := leadingRun(line[scan:], '`')
+			if run == opening {
+				closing = scan
+				break
+			}
+			scan += run
+		}
+		if closing < 0 {
+			// An unmatched run is literal text, not a span.
+			rest.WriteString(line[index : index+opening])
+			index += opening
+			continue
+		}
+		spans = append(spans, line[index+opening:closing])
+		index = closing + opening
+	}
+	return spans, rest.String()
+}
+
+// leadingRun counts the leading repetitions of char in value.
+func leadingRun(value string, char byte) int {
+	run := 0
+	for run < len(value) && value[run] == char {
+		run++
+	}
+	return run
 }
 
 // inlineLinks returns every inline link in lines, ignoring those inside an
@@ -544,7 +681,7 @@ func fenceMarker(line string) string {
 func inlineLinks(lines []string) []reference {
 	var refs []reference
 	for index, line := range lines {
-		outsideCode := backtickSpan.ReplaceAllString(line, "")
+		_, outsideCode := splitCodeSpans(line)
 		for _, match := range inlineLink.FindAllStringSubmatch(outsideCode, -1) {
 			if match[1] != "" {
 				refs = append(refs, reference{line: index + 1, target: match[1]})
@@ -582,7 +719,8 @@ func headingAnchors(lines []string) map[string]struct{} {
 // headingSlug computes the fragment identifier GitHub generates for one
 // heading: the rendered text, lowercased, stripped of everything that is
 // not a letter, digit, hyphen, or underscore, with spaces becoming
-// hyphens.
+// hyphens. Every other character, tabs included, is dropped rather than
+// hyphenated, which is what GitHub does.
 //
 // Underscores survive. They are not emphasis markers inside a word, and
 // dropping them turns the real anchor of a heading like `threat_model`
@@ -596,7 +734,7 @@ func headingSlug(text string) string {
 		switch {
 		case unicode.IsLetter(r), unicode.IsDigit(r), r == '-', r == '_':
 			slug.WriteRune(r)
-		case r == ' ' || r == '\t':
+		case r == ' ':
 			slug.WriteRune('-')
 		}
 	}

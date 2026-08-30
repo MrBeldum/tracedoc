@@ -124,6 +124,28 @@ func requireReport(t *testing.T, errs []string, fragments ...string) {
 	}
 }
 
+// requireOnlyReport asserts that errs holds exactly one finding and that it
+// mentions every fragment. The drift reproductions use it because each
+// override introduces exactly one problem: a second finding would mean a
+// check had grown a false positive alongside the true one, which
+// requireReport alone would not notice.
+func requireOnlyReport(t *testing.T, errs []string, fragments ...string) {
+	t.Helper()
+	if len(errs) != 1 {
+		t.Fatalf("want exactly one finding, got %d: %v", len(errs), errs)
+	}
+	requireReport(t, errs, fragments...)
+}
+
+// requireClean asserts that the fixture produced no findings at all. Every
+// use marks documentation that is correct and must not be reported.
+func requireClean(t *testing.T, errs []string) {
+	t.Helper()
+	if len(errs) > 0 {
+		t.Fatalf("correct documentation was reported: %v", errs)
+	}
+}
+
 func containsAll(value string, fragments []string) bool {
 	for _, fragment := range fragments {
 		if !strings.Contains(value, fragment) {
@@ -134,9 +156,73 @@ func containsAll(value string, fragments []string) bool {
 }
 
 func TestCleanRepositoryPassesEveryCheck(t *testing.T) {
-	if errs := checkAll(t, nil); len(errs) > 0 {
-		t.Fatalf("clean fixture reported %v", errs)
-	}
+	requireClean(t, checkAll(t, nil))
+}
+
+// TestCorrectDocumentationIsNeverReported collects the shapes that a
+// contributor may legitimately write and that an earlier draft of these
+// checks reported as broken. A false positive breaks CI on correct
+// documentation, which is the failure mode that would get the whole gate
+// switched off, so each one is pinned here.
+func TestCorrectDocumentationIsNeverReported(t *testing.T) {
+	t.Run("a multi-backtick code span quoting link syntax", func(t *testing.T) {
+		// The only way to show a code span containing a backtick is to
+		// open with two, which is exactly how prose about Markdown quotes
+		// Markdown.
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nWrite `` `[text](docs/nowhere.md)` `` to show link syntax literally.\n",
+		}))
+	})
+
+	t.Run("a multi-backtick code span quoting a path", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nWrite `` `docs/nowhere.md` `` to show a path literally.\n",
+		}))
+	})
+
+	t.Run("a Keep a Changelog bracketed release heading", func(t *testing.T) {
+		// CHANGELOG.md names Keep a Changelog as its model, and that
+		// format brackets the version.
+		requireClean(t, checkAll(t, map[string]string{
+			"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n\n## [0.1.0] - 2026-08-02\n\nInitial release.\n",
+		}))
+	})
+
+	t.Run("a backticked path with a line reference", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nSee `internal/docscheck/docscheck.go#L120` for the fence logic.\n",
+		}))
+	})
+
+	t.Run("a dead link left inside an HTML comment", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n<!-- TODO: restore [old link](docs/removed.md) later -->\n",
+		}))
+	})
+
+	t.Run("an HTML comment spanning several lines", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n<!--\n[a](docs/gone.md)\n`docs/gone.md`\n-->\n\nSee [cli](docs/cli.md).\n",
+		}))
+	})
+
+	t.Run("a run block written with a chomping indicator", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			".github/workflows/ci.yml": strings.Replace(fixtureWorkflow, "run: |\n", "run: |-\n", 1),
+		}))
+	})
+
+	t.Run("a dot-slash relative link", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nSee [cli](./docs/cli.md).\n",
+		}))
+	})
+
+	t.Run("an image and a titled link that both resolve", func(t *testing.T) {
+		requireClean(t, checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n![schema](docs/schema.md) and [cli](docs/cli.md \"The CLI\").\n",
+		}))
+	})
 }
 
 // The three tests below reproduce the drifts that motivated this check.
@@ -156,7 +242,7 @@ func TestCatchesTheRenamedCommandAnchorDrift(t *testing.T) {
 			1,
 		),
 	})
-	requireReport(t, errs, "docs/schema.md:3", "matrix-compare", "names no heading in docs/cli.md")
+	requireOnlyReport(t, errs, "docs/schema.md:3", "matrix-compare", "names no heading in docs/cli.md")
 }
 
 // TestCatchesTheStagedWorkflowsDrift reproduces AGENTS.md naming
@@ -173,7 +259,7 @@ func TestCatchesTheStagedWorkflowsDrift(t *testing.T) {
 			1,
 		),
 	})
-	requireReport(t, errs, "AGENTS.md:3", ".github/workflows-staged/", "does not exist in the repository")
+	requireOnlyReport(t, errs, "AGENTS.md:3", ".github/workflows-staged/", "does not exist in the repository")
 }
 
 // TestCatchesTheUnreleasedChangelogDrift reproduces CHANGELOG.md still
@@ -184,7 +270,7 @@ func TestCatchesTheUnreleasedChangelogDrift(t *testing.T) {
 	errs := checkAll(t, map[string]string{
 		"CHANGELOG.md": strings.Replace(fixtureChangelog, "## 0.1.0 - 2026-08-02", "## 0.1.0 - Unreleased", 1),
 	})
-	requireReport(t, errs, "CHANGELOG.md:5", "0.1.0", "Unreleased", "YYYY-MM-DD")
+	requireOnlyReport(t, errs, "CHANGELOG.md:5", "0.1.0", "Unreleased", "YYYY-MM-DD")
 }
 
 func TestCheckLinks(t *testing.T) {
@@ -213,18 +299,14 @@ func TestCheckLinks(t *testing.T) {
 		errs := checkAll(t, map[string]string{
 			"README.md": "# tracedoc\n\n[a](https://example.org/x#y) [b](mailto:x@example.org) [c](/sofired/tracedoc)\n",
 		})
-		if len(errs) > 0 {
-			t.Fatalf("external targets reported %v", errs)
-		}
+		requireClean(t, errs)
 	})
 
 	t.Run("a fragment on a non-Markdown file is left alone", func(t *testing.T) {
 		errs := checkAll(t, map[string]string{
 			"README.md": "# tracedoc\n\nSee [the constant](cmd/tracedoc/main.go#L3).\n",
 		})
-		if len(errs) > 0 {
-			t.Fatalf("line anchor reported %v", errs)
-		}
+		requireClean(t, errs)
 	})
 
 	t.Run("anchors resolve into documents outside the checked set", func(t *testing.T) {
@@ -239,9 +321,7 @@ func TestCheckLinks(t *testing.T) {
 			"README.md": "# tracedoc\n\nWrite `[text](docs/nowhere.md)` like this:\n\n" +
 				"```md\n[text](docs/also-nowhere.md)\n```\n",
 		})
-		if len(errs) > 0 {
-			t.Fatalf("example links reported %v", errs)
-		}
+		requireClean(t, errs)
 	})
 }
 
@@ -257,9 +337,91 @@ func TestCheckNamedPaths(t *testing.T) {
 		errs := checkAll(t, map[string]string{
 			"README.md": "# tracedoc\n\nSources live in `internal/docscheck/` and `cmd/tracedoc/main.go`.\n",
 		})
-		if len(errs) > 0 {
-			t.Fatalf("existing paths reported %v", errs)
-		}
+		requireClean(t, errs)
+	})
+}
+
+// TestDetectionIsNotDefeatedByShape covers drift written in a shape the
+// simple cases above do not reach.
+func TestDetectionIsNotDefeatedByShape(t *testing.T) {
+	t.Run("a broken image link is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\n![diagram](docs/diagram.png)\n",
+		})
+		requireOnlyReport(t, errs, "README.md:3", "docs/diagram.png", "does not exist")
+	})
+
+	t.Run("only the broken link on a two-link line is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nSee [cli](docs/cli.md) and [gone](docs/gone.md).\n",
+		})
+		requireOnlyReport(t, errs, "README.md:3", "docs/gone.md", "does not exist")
+	})
+
+	t.Run("a titled link to a missing file is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nSee [gone](docs/gone.md \"Title\").\n",
+		})
+		requireOnlyReport(t, errs, "README.md:3", "docs/gone.md", "does not exist")
+	})
+
+	t.Run("a version that is a substring of another is not confused with it", func(t *testing.T) {
+		// A prefix or substring match here would let "## 10.1.0" satisfy
+		// the check for released version 0.1.0.
+		errs := checkAll(t, map[string]string{
+			"CHANGELOG.md": "# Changelog\n\n## Unreleased\n\n## 10.1.0 - 2026-09-02\n\n## 0.1.0 - Unreleased\n",
+		})
+		requireOnlyReport(t, errs, "CHANGELOG.md:7", "released version 0.1.0", "Unreleased", "YYYY-MM-DD")
+	})
+
+	t.Run("a self-check command split across lines fails loudly", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			".github/workflows/ci.yml": strings.Replace(fixtureWorkflow,
+				"          go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/matrix.json\n",
+				"          go run ./cmd/tracedoc validate \\\n            -config testdata/config.json -doc testdata/matrix.json\n", 1),
+		})
+		requireReport(t, errs, "continued onto the next line with a backslash")
+	})
+}
+
+// TestUnreadableAndMalformedInputsAreReported covers the branches reached
+// when a file the checks depend on is missing or cannot be parsed. Each
+// produces a distinct message rather than a silent pass, so a document
+// deleted or renamed by mistake surfaces as drift like any other.
+func TestUnreadableAndMalformedInputsAreReported(t *testing.T) {
+	t.Run("a deleted AGENTS.md", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{"AGENTS.md": removed})
+		requireReport(t, errs, "AGENTS.md", "read:")
+	})
+
+	t.Run("a deleted CHANGELOG.md", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{"CHANGELOG.md": removed})
+		requireReport(t, errs, "CHANGELOG.md", "read:")
+	})
+
+	t.Run("a deleted main.go", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{"cmd/tracedoc/main.go": removed})
+		requireReport(t, errs, "read cmd/tracedoc/main.go")
+	})
+
+	t.Run("a deleted CI workflow", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{".github/workflows/ci.yml": removed})
+		requireReport(t, errs, "read .github/workflows/ci.yml")
+	})
+
+	t.Run("a deleted release workflow", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{".github/workflows/release.yml": removed})
+		requireReport(t, errs, "read .github/workflows/release.yml")
+	})
+
+	t.Run("a main.go that does not parse", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{"cmd/tracedoc/main.go": "package main\n\nfunc main( {\n"})
+		requireReport(t, errs, "parse cmd/tracedoc/main.go")
+	})
+
+	t.Run("a toolVersion that is not a string literal", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{"cmd/tracedoc/main.go": "package main\n\nconst toolVersion = 42\n"})
+		requireReport(t, errs, "toolVersion constant", "is not a string literal")
 	})
 }
 
@@ -366,9 +528,7 @@ func TestCheckSelfCheckCommands(t *testing.T) {
 				"        run: echo done\n",
 				"        run: go run ./cmd/tracedoc version\n", 1),
 		})
-		if len(errs) > 0 {
-			t.Fatalf("a command in a later step was read as a self-check: %v", errs)
-		}
+		requireClean(t, errs)
 	})
 
 	t.Run("a workflow without the step is reported", func(t *testing.T) {
@@ -376,6 +536,43 @@ func TestCheckSelfCheckCommands(t *testing.T) {
 			".github/workflows/ci.yml": "name: CI\njobs:\n  verify:\n    steps:\n      - name: Vet\n        run: go vet ./...\n",
 		})
 		requireReport(t, errs, "has no \"Self-check fixture documents\" step")
+	})
+
+	t.Run("a step that runs an action instead of commands is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			".github/workflows/ci.yml": "name: CI\njobs:\n  verify:\n    steps:\n" +
+				"      - name: Self-check fixture documents\n        uses: ./.github/actions/self-check\n" +
+				"      - name: Done\n        run: |\n          echo done\n",
+		})
+		requireReport(t, errs, "has no \"run: |\" block")
+	})
+
+	t.Run("an unnamed step does not leak commands into the block", func(t *testing.T) {
+		// The scan for the run block must stop at the next sequence item
+		// even when that item has no name.
+		errs := checkAll(t, map[string]string{
+			".github/workflows/ci.yml": "name: CI\njobs:\n  verify:\n    steps:\n" +
+				"      - name: Self-check fixture documents\n        uses: ./.github/actions/self-check\n" +
+				"      - uses: actions/upload-artifact@v4\n        run: |\n          go run ./cmd/tracedoc version\n",
+		})
+		requireReport(t, errs, "has no \"run: |\" block")
+	})
+
+	t.Run("a CI step that runs no self-check command is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			".github/workflows/ci.yml": strings.Replace(fixtureWorkflow,
+				"          go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/matrix.json\n"+
+					"          go run ./cmd/tracedoc compare -config testdata/config.json -baseline testdata/matrix.json -candidate testdata/matrix.json\n",
+				"          echo nothing\n", 1),
+		})
+		requireReport(t, errs, "runs no go run ./cmd/tracedoc command")
+	})
+
+	t.Run("an AGENTS.md documenting no self-check command is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": "# tracedoc agent instructions\n\n## Validation\n\n```sh\ngofmt -l .\n```\n",
+		})
+		requireReport(t, errs, "AGENTS.md", "documents no go run ./cmd/tracedoc command")
 	})
 }
 

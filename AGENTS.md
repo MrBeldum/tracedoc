@@ -35,10 +35,10 @@ codebase.
   content always flows through the escaping template functions.
 - `.github/workflows/` holds the CI and release workflows.
 - Documentation is gated, not advisory: `internal/docscheck` fails the
-  test suite on a dead internal link or anchor, on a repository path named
-  in prose that does not exist, on a changelog section still undated for
-  the released version, and on self-check command lists that have drifted
-  apart. See [Documentation checks](#documentation-checks).
+  test suite on a dead internal link or anchor, on a backticked repository
+  path named in prose that does not exist, on a changelog section with no
+  correctly dated entry for the released version, and on self-check command
+  lists that have drifted apart. See [Documentation checks](#documentation-checks).
 
 ## Validation
 
@@ -78,9 +78,19 @@ go test ./internal/docscheck/
 
 It fails the build when a relative Markdown link or `#anchor` does not
 resolve, when a backticked repository path named in prose does not exist,
-when `CHANGELOG.md` has no dated section for the version
+when `CHANGELOG.md` has no section dated `YYYY-MM-DD` for the version
 `cmd/tracedoc/main.go` reports, or when the self-check command lists
-above have drifted apart.
+above have drifted apart. In CI these run inside the existing
+"Test with race detector" step, as `TestRepositoryDocumentation`.
+
+Fixing a failure means correcting the claim, not the checker: repoint the
+link, restore the path, date the changelog section, or bring the command
+lists back together. The checker is deliberately conservative about what
+it treats as a repository path — a backticked candidate must contain a
+slash, carry no glob or shell metacharacters, and begin with a segment
+that names a real entry at the repository root — so a false report is
+more likely a real mistake than a checker bug. Its known blind spots are
+listed in the package comment.
 
 These checks cover claims that are mechanically false, never writing
 quality. A claim about *behavior* — that a template anchors every entity,

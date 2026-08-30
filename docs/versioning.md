@@ -53,7 +53,11 @@ record of what happened, not as a standing escape hatch.
 ## Release process
 
 1. Update `CHANGELOG.md` and the `toolVersion` constant in
-   `cmd/tracedoc/main.go` to the release version.
+   `cmd/tracedoc/main.go` to the release version. `internal/docscheck`
+   enforces that the two agree and that the changelog section carries a
+   `YYYY-MM-DD` date, but it can only check the date's *form* — the tag
+   does not exist yet, so nothing can confirm the date is the day you
+   actually ship. If the release slips, re-check the date before step 3.
 2. CI must be green (formatting, `go vet`, race-enabled tests, tidy and
    dependency-free module checks, fixture self-checks for both document
    types).
