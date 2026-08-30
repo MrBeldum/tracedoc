@@ -29,13 +29,15 @@
 //   - An inline code span that crosses a line ending is removed with the
 //     HTML comments rather than kept, because the link and path checks
 //     read each line's spans on their own and would take its contents for
-//     live Markdown. A repository path quoted inside such a span is
-//     therefore never checked. No multi-line span appears in this
-//     repository's documentation today.
+//     live Markdown. A repository path or a link quoted inside such a
+//     span is therefore never checked. No multi-line span appears in
+//     this repository's documentation today.
 //   - A backtick run that never closes is scanned to the end of its
 //     paragraph, so a paragraph built entirely of such runs costs more
-//     than linear time: 16ms at 99 KB and 391ms at 631 KB. Every check
-//     over this repository's real tree together takes 26ms.
+//     than linear time. Checking this repository's real tree takes a few
+//     tens of milliseconds, and the growth starts to matter only for a
+//     crafted document orders of magnitude larger than the tree itself.
+//     Bounding the scan is tracked separately.
 //   - Indented (non-fenced) code blocks are not treated as examples. Every
 //     example here uses a fence.
 //   - The checks trust the working tree's file identity, not only its path
@@ -664,8 +666,11 @@ func blankHTMLComments(lines []string) []string {
 //
 // An unmatched run is literal text, and CommonMark opens a span only on a
 // whole run, so the run is copied and stepped over as a unit. Resuming
-// inside it would both read a span that GitHub does not render and, on a
-// long paragraph of such runs, rescan the paragraph once per backtick.
+// inside it would pair one of its own backticks with the delimiter that
+// should have opened the next span, reading a span GitHub does not render
+// and leaving the real one's contents -- a "<!--" among them -- exposed
+// as prose. On a long paragraph of such runs it would also rescan the
+// paragraph once per backtick.
 func readCodeSpan(prose []strings.Builder, lines []string, index, position int) (int, int) {
 	endIndex, endPosition, ok := codeSpanEnd(lines, index, position)
 	switch {

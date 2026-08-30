@@ -485,6 +485,17 @@ func TestDetectionIsNotDefeatedByShape(t *testing.T) {
 		requireOnlyReport(t, errs, "README.md:6", "docs/gone.md", "does not exist")
 	})
 
+	t.Run("an unclosed run does not steal a real span's delimiter", func(t *testing.T) {
+		// The leading run of two never closes, so it is literal text.
+		// Resuming inside it pairs its second backtick with the one that
+		// should have opened the span around `<!-- fake `, leaving that
+		// delimiter exposed as a comment opener that swallows the link.
+		errs := checkAll(t, map[string]string{
+			"README.md": "# tracedoc\n\nWrite ``oops and `<!-- fake ` then see [gone](docs/gone.md).\n",
+		})
+		requireOnlyReport(t, errs, "README.md:3", "docs/gone.md", "does not exist")
+	})
+
 	t.Run("a self-check command split across lines fails loudly", func(t *testing.T) {
 		errs := checkAll(t, map[string]string{
 			".github/workflows/ci.yml": strings.Replace(fixtureWorkflow,
