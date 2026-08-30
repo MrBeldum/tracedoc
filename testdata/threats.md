@@ -88,7 +88,8 @@ Architecture-level threat model for the example token service, covering credenti
 | ID | Asset | Objective | Threats |
 | --- | --- | --- | ---: |
 | [`AST-001`](#ast-001) | Client credentials | Confidentiality and resistance to offline guessing. | 2 |
-| [`AST-002`](#ast-002) | Token signing keys | Confidentiality and non-repudiation of issued tokens. | 2 |
+| [`AST-002`](#ast-002) | Token signing keys | Confidentiality and non-repudiation of issued tokens. | 1 |
+| [`AST-003`](#ast-003) | Discovery metadata | Integrity and authenticity for every client that reads it. | 1 |
 
 <a id="ast-001"></a>
 <details>
@@ -102,11 +103,21 @@ Registered client secrets and authentication material.
 
 <a id="ast-002"></a>
 <details>
-<summary><code>AST-002</code> - Token signing keys (2)</summary>
+<summary><code>AST-002</code> - Token signing keys (1)</summary>
 
 Private keys that sign issued tokens.
 
-[`THRT-002`](#thrt-002), [`THRT-003`](#thrt-003)
+[`THRT-002`](#thrt-002)
+
+</details>
+
+<a id="ast-003"></a>
+<details>
+<summary><code>AST-003</code> - Discovery metadata (1)</summary>
+
+The published document naming the token endpoint and its keys.
+
+[`THRT-003`](#thrt-003)
 
 </details>
 
@@ -116,7 +127,7 @@ Private keys that sign issued tokens.
 | ID | Boundary | Source | Destination | State | Threats |
 | --- | --- | --- | --- | --- | ---: |
 | [`TB-001`](#tb-001) | Public network to token endpoint | `COMP-001` | `COMP-002` | planned | 2 |
-| [`TB-002`](#tb-002) | Token service to key store | `COMP-002` | `COMP-003` | partially implemented | 2 |
+| [`TB-002`](#tb-002) | Token service to key store | `COMP-002` | `COMP-003` | partially implemented | 1 |
 
 <a id="tb-001"></a>
 <details>
@@ -147,7 +158,7 @@ Requests crossing from the public network into the token service.
 
 <a id="tb-002"></a>
 <details>
-<summary><code>TB-002</code> - Token service to key store (2)</summary>
+<summary><code>TB-002</code> - Token service to key store (1)</summary>
 
 Signing-key retrieval crossing into the restricted zone.
 
@@ -168,7 +179,7 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Evidence:** diagrams/data-flow.md
 
-[`THRT-002`](#thrt-002), [`THRT-003`](#thrt-003)
+[`THRT-002`](#thrt-002)
 
 </details>
 
@@ -177,7 +188,7 @@ Signing-key retrieval crossing into the restricted zone.
 
 <a id="df-001"></a>
 <details>
-<summary><code>DF-001</code> - Token issuance (2)</summary>
+<summary><code>DF-001</code> - Token issuance (1)</summary>
 
 **Sequence:**
 
@@ -189,7 +200,7 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Boundaries crossed:** `TB-001`, `TB-002`
 
-[`THRT-001`](#thrt-001), [`THRT-003`](#thrt-003)
+[`THRT-001`](#thrt-001)
 
 </details>
 
@@ -210,23 +221,42 @@ Signing-key retrieval crossing into the restricted zone.
 
 </details>
 
+<a id="df-003"></a>
+<details>
+<summary><code>DF-003</code> - Discovery metadata retrieval (1)</summary>
+
+**Sequence:**
+
+1. Client requests the discovery document from the public edge proxy.
+2. Proxy returns metadata naming the token endpoint and its keys.
+3. Client configures itself from the returned metadata.
+
+**Data:** `Discovery metadata`
+
+**Boundaries crossed:** `TB-001`
+
+[`THRT-003`](#thrt-003)
+
+</details>
+
 
 ## Entry points
 
 | ID | Surface | Reached by | Boundary | Flows | Threats |
 | --- | --- | --- | --- | --- | ---: |
-| [`EP-001`](#ep-001) | POST /token | Directly from the public network. | `TB-001` | DF-001 | 2 |
+| [`EP-001`](#ep-001) | POST /token | Directly from the public network. | `TB-001` | DF-001 | 1 |
 | [`EP-002`](#ep-002) | Key store retrieval API | From the token service inside the application zone. | `TB-002` | DF-002 | 1 |
+| [`EP-003`](#ep-003) | GET /.well-known/openid-configuration | Directly from the public network, before any credential is presented. | `TB-001` | DF-003 | 1 |
 
 <a id="ep-001"></a>
 <details>
-<summary><code>EP-001</code> - POST /token (2)</summary>
+<summary><code>EP-001</code> - POST /token (1)</summary>
 
-**Notes:** The only unauthenticated surface in the model.
+**Notes:** Unauthenticated by definition: it is where credentials are first presented.
 
 **Evidence:** diagrams/data-flow.md
 
-[`THRT-001`](#thrt-001), [`THRT-003`](#thrt-003)
+[`THRT-001`](#thrt-001)
 
 </details>
 
@@ -239,6 +269,18 @@ Signing-key retrieval crossing into the restricted zone.
 **Evidence:** diagrams/data-flow.md
 
 [`THRT-002`](#thrt-002)
+
+</details>
+
+<a id="ep-003"></a>
+<details>
+<summary><code>EP-003</code> - GET /.well-known/openid-configuration (1)</summary>
+
+**Notes:** Read by clients during configuration, so tampering here steers every later request.
+
+**Evidence:** diagrams/data-flow.md
+
+[`THRT-003`](#thrt-003)
 
 </details>
 
@@ -371,7 +413,7 @@ Signing-key retrieval crossing into the restricted zone.
 
 | ID | Threat | Treatment | Owner | Assets | Boundaries |
 | --- | --- | --- | --- | --- | --- |
-| [`THRT-003`](#thrt-003) | Metadata downgrade over plain HTTP | `mitigate` | @platform-owner / M0 / Platform / #7 | AST-001, AST-002 | TB-001, TB-002 |
+| [`THRT-003`](#thrt-003) | Metadata downgrade over plain HTTP | `mitigate` | @platform-owner / M0 / Platform / #7 | AST-001, AST-003 | TB-001 |
 
 <a id="thrt-003"></a>
 <details>
@@ -401,7 +443,7 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Owner:** @platform-owner / M0 / Platform / #7
 
-**Residual risk:** Clients that ignore transport errors remain exposed and are tracked as R2.
+**Residual risk:** CTRL-003 cannot reach a client that never contacts the edge, so clients that accept plaintext discovery remain exposed. Tracked as R2.
 
 **Existing controls:** None in place; CTRL-003 is planned and discovery is not yet published.
 
@@ -413,11 +455,11 @@ Signing-key retrieval crossing into the restricted zone.
 
 **Actors:** `ACTOR-001`
 
-**Assets:** `AST-001`, `AST-002`
+**Assets:** `AST-001`, `AST-003`
 
-**Trust boundaries:** `TB-001`, `TB-002`
+**Trust boundaries:** `TB-001`
 
-**Data flows:** `DF-001`
+**Data flows:** `DF-003`
 
 **Controls:** `CTRL-003`
 
@@ -458,7 +500,7 @@ Restricts key retrieval to the token service identity and records every access.
 
 Refuses to serve discovery metadata over an insecure channel rather than answering the request.
 
-**Implementation note:** Enforced at the public edge, where ADR-101 terminates transport security.
+**Implementation note:** Enforced at the public edge, where ADR-101 terminates transport security. Server-side only: an on-path attacker can answer a plaintext request before it reaches the edge, so this bounds exposure rather than removing it, and R2 stays open until clients refuse plaintext discovery.
 
 </details>
 

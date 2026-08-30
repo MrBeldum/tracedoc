@@ -62,7 +62,7 @@ Ownership routes requirements through durable responsibility classifications rat
 <details>
 <summary><code>{{htmlText .Milestone}}</code> - {{htmlText .Workstream}}{{if .Issue}} - <a href="{{htmlText (issueURL .Issue)}}">{{htmlText .Issue}}</a>{{end}} ({{len .Requirements}})</summary>
 
-{{range $index, $requirement := .Requirements}}{{if $index}}, {{end}}[`{{$requirement.ID}}`](#{{anchor $requirement.ID}}){{end}}
+{{range $index, $requirement := .Requirements}}{{if $index}}, {{end}}[`{{$requirement.ID}}`](#{{anchorHref $requirement.ID}}){{end}}
 
 </details>
 
@@ -73,13 +73,13 @@ These requirements are intentionally deferred or not applicable. Their detailed 
 
 | ID | Requirement | Disposition | Owner | Rationale |
 | --- | --- | --- | --- | --- |
-{{range .BoundaryRequirements}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table .ApplicabilityRationale}} |
+{{range .BoundaryRequirements}}| [`{{.ID}}`](#{{anchorHref .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table .ApplicabilityRationale}} |
 {{end}}
 ## Standards index
 
 | Source | Requirements |
 | --- | ---: |
-{{range .Standards}}| [`{{.Standard.Key}}`](#standard-{{anchor .Standard.Key}}) - {{table .Standard.Title}} | {{len .Requirements}} |
+{{range .Standards}}| [`{{.Standard.Key}}`](#standard-{{anchorHref .Standard.Key}}) - {{table .Standard.Title}} | {{len .Requirements}} |
 {{end}}
 {{range .Standards}}{{if not .First}}
 {{end}}<a id="standard-{{anchor .Standard.Key}}"></a>
@@ -89,7 +89,7 @@ These requirements are intentionally deferred or not applicable. Their detailed 
 
 | ID | Requirement | Applicability | Owner | Verification | Status |
 | --- | --- | --- | --- | --- | --- |
-{{range .Requirements}}| [`{{.ID}}`](#{{anchor .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table (join .PlannedVerification.Levels ", ")}} | `{{.EvidenceStatus}}` |
+{{range .Requirements}}| [`{{.ID}}`](#{{anchorHref .ID}}) | {{table .Title}} | `{{.Applicability}}` | {{owner .Owner}} | {{table (join .PlannedVerification.Levels ", ")}} | `{{.EvidenceStatus}}` |
 {{end}}
 {{range .Requirements}}{{template "requirement" .}}{{end}}{{end}}## Supersessions
 

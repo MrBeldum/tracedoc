@@ -96,6 +96,12 @@
       "name": "Token signing keys",
       "description": "Private keys that sign issued tokens.",
       "objective": "Confidentiality and non-repudiation of issued tokens."
+    },
+    {
+      "id": "AST-003",
+      "name": "Discovery metadata",
+      "description": "The published document naming the token endpoint and its keys.",
+      "objective": "Integrity and authenticity for every client that reads it."
     }
   ],
   "trust_boundaries": [
@@ -157,6 +163,17 @@
       ],
       "boundaries": ["TB-002"],
       "data": ["Signing key material"]
+    },
+    {
+      "id": "DF-003",
+      "name": "Discovery metadata retrieval",
+      "sequence": [
+        "Client requests the discovery document from the public edge proxy.",
+        "Proxy returns metadata naming the token endpoint and its keys.",
+        "Client configures itself from the returned metadata."
+      ],
+      "boundaries": ["TB-001"],
+      "data": ["Discovery metadata"]
     }
   ],
   "entry_points": [
@@ -166,7 +183,7 @@
       "reached": "Directly from the public network.",
       "boundary": "TB-001",
       "flows": ["DF-001"],
-      "notes": "The only unauthenticated surface in the model.",
+      "notes": "Unauthenticated by definition: it is where credentials are first presented.",
       "evidence": "diagrams/data-flow.md"
     },
     {
@@ -176,6 +193,15 @@
       "boundary": "TB-002",
       "flows": ["DF-002"],
       "notes": "Reachable only after a foothold in the application zone.",
+      "evidence": "diagrams/data-flow.md"
+    },
+    {
+      "id": "EP-003",
+      "surface": "GET /.well-known/openid-configuration",
+      "reached": "Directly from the public network, before any credential is presented.",
+      "boundary": "TB-001",
+      "flows": ["DF-003"],
+      "notes": "Read by clients during configuration, so tampering here steers every later request.",
       "evidence": "diagrams/data-flow.md"
     }
   ],
@@ -255,7 +281,7 @@
       "decision_links": ["ADR-101"],
       "risk_links": ["R2"],
       "evidence_links": ["EVD-003"],
-      "implementation_note": "Enforced at the public edge, where ADR-101 terminates transport security."
+      "implementation_note": "Enforced at the public edge, where ADR-101 terminates transport security. Server-side only: an on-path attacker can answer a plaintext request before it reaches the edge, so this bounds exposure rather than removing it, and R2 stays open until clients refuse plaintext discovery."
     }
   ],
   "planned_evidence": [
@@ -418,15 +444,15 @@
         "issue": "#7",
         "workstream": "Platform"
       },
-      "residual_risk": "Clients that ignore transport errors remain exposed and are tracked as R2.",
+      "residual_risk": "CTRL-003 cannot reach a client that never contacts the edge, so clients that accept plaintext discovery remain exposed. Tracked as R2.",
       "existing_controls": "None in place; CTRL-003 is planned and discovery is not yet published.",
       "gaps": "RFCX-001 requires metadata over TLS, but nothing enforces it while CTRL-003 remains planned.",
       "recommended_mitigations": "Refuse to serve discovery metadata over an insecure channel.",
       "detection_ideas": "Alert on any plaintext request reaching the discovery path.",
       "actor_links": ["ACTOR-001"],
-      "asset_links": ["AST-001", "AST-002"],
-      "boundary_links": ["TB-001", "TB-002"],
-      "flow_links": ["DF-001"],
+      "asset_links": ["AST-001", "AST-003"],
+      "boundary_links": ["TB-001"],
+      "flow_links": ["DF-003"],
       "control_links": ["CTRL-003"],
       "risk_links": ["R2"],
       "evidence_links": ["EVD-003"]

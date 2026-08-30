@@ -285,14 +285,35 @@ func TestViewGrouping(t *testing.T) {
 	if len(view.Boundaries) != 2 || len(view.Boundaries[0].Threats) != 2 {
 		t.Fatalf("unexpected boundary grouping: %#v", view.Boundaries)
 	}
-	if len(view.Assets) != 2 || len(view.Assets[0].Threats) != 2 {
+	if len(view.Assets) != 3 || len(view.Assets[0].Threats) != 2 {
 		t.Fatalf("unexpected asset grouping: %#v", view.Assets)
 	}
-	if len(view.Flows) != 2 || len(view.Flows[0].Threats) != 2 {
+	if len(view.Flows) != 3 || len(view.Flows[0].Threats) != 1 {
 		t.Fatalf("unexpected flow grouping: %#v", view.Flows)
 	}
-	if len(view.EntryPoints) != 2 || len(view.EntryPoints[0].Threats) != 2 {
+	if len(view.EntryPoints) != 3 || len(view.EntryPoints[0].Threats) != 1 {
 		t.Fatalf("unexpected entry-point grouping: %#v", view.EntryPoints)
+	}
+
+	// EP-001 and EP-003 sit on one boundary and differ only by flow, so
+	// they separate exactly when the entry-point rule reads both halves.
+	// Grouping them by boundary alone would credit each with both threats.
+	for _, want := range []struct{ entryPoint, threat string }{
+		{"EP-001", "THRT-001"},
+		{"EP-003", "THRT-003"},
+	} {
+		var got []string
+		for _, section := range view.EntryPoints {
+			if section.ID != want.entryPoint {
+				continue
+			}
+			for _, threat := range section.Threats {
+				got = append(got, threat.ID)
+			}
+		}
+		if len(got) != 1 || got[0] != want.threat {
+			t.Errorf("%s should group %s alone, got %v", want.entryPoint, want.threat, got)
+		}
 	}
 }
 

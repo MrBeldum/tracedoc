@@ -91,6 +91,7 @@ func definesRoot(parsed *template.Template) bool {
 func templateFuncs(options Options) template.FuncMap {
 	return template.FuncMap{
 		"anchor":       AnchorID,
+		"anchorHref":   AnchorHref,
 		"htmlText":     HTMLText,
 		"inlineCode":   func(value string) string { return InlineCode(CodeText(value)) },
 		"inlineValues": InlineValues,
@@ -117,6 +118,36 @@ func templateFuncs(options Options) template.FuncMap {
 // two can never disagree.
 func AnchorID(value string) string {
 	return HTMLText(strings.ToLower(value))
+}
+
+// AnchorHref renders value as a same-document link destination addressing
+// the anchor AnchorID writes for the same identifier.
+//
+// The two contexts need different escaping and must still agree. An id
+// attribute holds the identifier itself, HTML-escaped; a Markdown
+// destination is terminated by a parenthesis or a space, so the identifier
+// is percent-encoded instead. A fragment is percent-decoded before it is
+// matched against an id, so encoding here is what makes the pair resolve
+// rather than what breaks it.
+//
+// Everything outside the RFC 3986 unreserved set is encoded, which leaves
+// every schema-owned identifier byte-identical and needs no judgement about
+// which consumer-patterned bytes are dangerous in which Markdown flavour.
+func AnchorHref(value string) string {
+	var escaped strings.Builder
+	escaped.Grow(len(value))
+	for _, encoded := range []byte(strings.ToLower(value)) {
+		switch {
+		case encoded >= 'a' && encoded <= 'z',
+			encoded >= 'A' && encoded <= 'Z',
+			encoded >= '0' && encoded <= '9',
+			encoded == '-', encoded == '.', encoded == '_', encoded == '~':
+			escaped.WriteByte(encoded)
+		default:
+			fmt.Fprintf(&escaped, "%%%02X", encoded)
+		}
+	}
+	return escaped.String()
 }
 
 // TableText escapes value for a Markdown table cell.

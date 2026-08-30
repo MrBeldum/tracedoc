@@ -80,12 +80,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   identifiers addressing one anchor. Only a consumer `risk_pattern` can
   express this; every other identifier format is schema-owned and
   uppercase.
-- An `anchor` template function, and an anchor on every declared record in
-  the rendered companion. Assumptions, components, actors, decisions,
-  risks, planned evidence, and observability records are now anchored
-  alongside the collections that already were, so each is addressable by
-  its identifier. `anchor` case-folds and escapes for an HTML attribute,
-  which `risks[].id` needs because it is consumer-patterned.
+- `anchor` and `anchorHref` template functions, and an anchor on every
+  declared record in the rendered companion. Assumptions, components,
+  actors, decisions, risks, planned evidence, and observability records are
+  now anchored alongside the collections that already were, so each is
+  addressable by its identifier. `anchor` escapes an identifier for an
+  `id` attribute and `anchorHref` percent-encodes it for a same-document
+  destination; both case-fold, so the pair resolves. Only `risks[].id`
+  needs either, being the one consumer-patterned identifier.
 - Observability records now render their `OBS-` identifier, which the
   companion previously validated but never showed.
 - Provenance-checked references for diagrams, decisions, and risks: exactly
