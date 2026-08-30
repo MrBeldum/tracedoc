@@ -1,0 +1,24 @@
+# CodeRabbit review configuration.
+#
+# Kept in the repository rather than in the CodeRabbit UI for the same
+# reason every other rule this project applies lives in a file: settings
+# that are not version-controlled cannot be reviewed, diffed, or explained
+# to the next contributor.
+#
+# CodeRabbit reads this file from the head branch of the pull request under
+# review, so a change here takes effect for the pull request that makes it.
+reviews:
+  auto_review:
+    enabled: true
+
+    # Review draft pull requests. The default is false, which silently
+    # skips a draft — and this project opens work as a draft first, so the
+    # default would skip most reviews at the point they are most useful.
+    drafts: true
+
+    # base_branches is additive to the repository default branch, which is
+    # main. Naming it explicitly is redundant against a correctly resolved
+    # default, and deliberately so: it removes any dependence on how the
+    # default branch is resolved or cached.
+    base_branches:
+      - "main"
