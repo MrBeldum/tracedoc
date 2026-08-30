@@ -1,7 +1,9 @@
 # tracedoc
 
-`tracedoc` is a CLI that validates, renders, and cross-version-compares
-versioned governance documents:
+`tracedoc` is a CLI for teams that keep governance documents as versioned
+JSON in the repository they describe, and gate changes to them in CI the
+way they gate code. It validates, renders, and cross-version-compares two
+document types:
 
 - a **requirements traceability matrix** — normative standards decomposed
   into atomic, stably identified requirements with citations, ownership,
@@ -53,8 +55,8 @@ can serve any project without embedding its policy.
 
 ## Install
 
-The commands below become valid once `v0.1.0` is tagged; `CHANGELOG.md`
-marks the release state.
+`CHANGELOG.md` marks the current release state; substitute the version you
+want to pin for `v0.1.0` below.
 
 **With a Go toolchain** (Go 1.26+; toolchain auto-download normally
 resolves this automatically), pin an exact release and run it through the

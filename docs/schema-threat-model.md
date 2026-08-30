@@ -38,7 +38,7 @@ will demonstrate it is handled and who carries whatever risk remains.
 | `planned_evidence` | array  | non-empty; see below                           |
 | `observability`    | array  | required, may be empty; see below              |
 | `threats`          | array  | non-empty; see below                           |
-| `supersessions`    | array  | shared supersession rules with threat IDs      |
+| `supersessions`    | array  | required, may be empty; shared supersession rules with threat IDs |
 
 Every array member is **required to be present**, even when empty. `compare`
 distinguishes an omitted array from an empty one, so spelling out an empty
@@ -63,7 +63,15 @@ about which collection it resolves against:
 | `planned_evidence` | `^EVD-[0-9]{3}$`     |
 | `observability`    | `^OBS-[0-9]{3}$`     |
 | `risks`            | configured `risk_pattern` |
-| `threats`          | stable-ID format; must not use any prefix above |
+| `threats`          | stable-ID format; must not use any of the fixed prefixes above |
+
+Decision IDs (`ADR-`, for *architecture decision record*) allow one to six
+digits rather than exactly three, because projects commonly number decision
+records from an existing issue or ADR sequence that has already passed 999.
+
+Risk IDs are the one collection without a fixed prefix, so they are not
+part of the threat-ID exclusion; document-wide uniqueness is what keeps a
+risk ID from colliding with anything else.
 
 Identifiers are unique **across the whole document**, not only within their
 collection. The rendered companion anchors every entity in one namespace, so
@@ -96,6 +104,17 @@ the path is only echoed into a rendered link.
 
 Diagram *generation* and diagram-source parsing are out of scope: the
 schema carries the reference, and the renderer emits it as a link.
+
+## `diagrams[]`
+
+| Member       | Type   | Rules                                      |
+| ------------ | ------ | ------------------------------------------ |
+| `caption`    | string | non-empty                                  |
+| `path`/`url` | string | exactly one; see [References](#references) |
+
+A diagram entry has no identifier: nothing links to a diagram, so there is
+nothing to resolve against. The caption is the link text in the rendered
+companion, and the reference is its destination.
 
 ## `scope`
 
@@ -271,7 +290,7 @@ cannot be written as "log everything about this surface".
 
 | Member                    | Type   | Rules                                            |
 | ------------------------- | ------ | ------------------------------------------------ |
-| `id`                      | string | stable-ID format, unique, never reused; must not use a reserved collection prefix |
+| `id`                      | string | [stable-ID format](schema.md#shared-structural-conventions), unique, never renumbered or reused; must not use a reserved collection prefix |
 | `title`                   | string | non-empty                                        |
 | `source`                  | string | non-empty; who or what originates the threat     |
 | `prerequisites`           | string | non-empty; what the attacker needs first         |
@@ -281,8 +300,8 @@ cannot be written as "log everything about this surface".
 | `likelihood`              | string | `low`, `medium`, or `high` (schema-owned)        |
 | `likelihood_rationale`    | string | non-empty                                        |
 | `severity`                | string | `low`, `medium`, or `high` (schema-owned)        |
-| `impact_rationale`        | string | non-empty                                        |
-| `priority`                | string | `critical`, `high`, `medium`, or `low` (schema-owned) |
+| `impact_rationale`        | string | non-empty; the rationale **for `severity`**, which is assessed on impact — not a rationale for the `impact` field above |
+| `priority`                | string | `critical`, `high`, `medium`, or `low` (schema-owned); see below |
 | `treatment`               | string | `mitigate`, `accept`, `avoid`, or `transfer` (schema-owned) |
 | `treatment_rationale`     | string | required for `accept`, `avoid`, and `transfer`; optional otherwise |
 | `owner`                   | object | see [Ownership](#ownership)                      |
@@ -303,6 +322,14 @@ cannot be written as "log everything about this surface".
 subsumes the common governance rule that no critical or high threat lacks an
 owner: making the rule conditional on priority would mean the priority
 assessment itself decides whether anyone is accountable.
+
+`priority` is the author's overall ranking, informed by `likelihood` and
+`severity` together. The tool does **not** derive it or check it against
+them: there is no fixed mapping from a three-by-three grid onto four
+priority levels, and which cell deserves which ranking is a judgement a
+project makes for itself. The document records that judgement, and the
+rationale fields are where it is justified. `priority` is what orders the
+rendered companion's sections.
 
 ### Treatment coupling
 
@@ -334,10 +361,14 @@ issue, and workstream change as plans change; the person answerable for the
 residual risk does not, and an unattributed residual risk is one nobody has
 agreed to carry.
 
-Every one of these is first checked non-blank, bounded, and free of
+`principal`, `milestone`, and `issue` are each first checked non-blank,
+bounded, and free of
 [invisible code points](schema.md#invisible-code-points), *then* matched
 against the configured pattern. A permissive consumer pattern therefore
-cannot admit a value the renderer must not receive.
+cannot admit a value the renderer must not receive. `workstream` is checked
+by membership in the configured list alone — it needs no lexical pass
+because a closed vocabulary cannot carry a value the project did not
+write.
 
 ## Coverage
 
@@ -371,14 +402,11 @@ certify an entry point nobody reviewed.
 
 ## Which vocabularies are schema-owned
 
-`likelihood`, `severity`, `priority`, `treatment`, and decision `status` are
-part of this schema rather than consumer configuration because the coupling
-and coverage rules above depend on their exact values. Changing them is a
-schema revision, not a config edit.
+`likelihood`, `severity`, `priority`, `treatment`, and `decisions[].status`
+are fixed by this schema. `document_statuses`, `control_statuses`,
+`evidence_levels`, and `evidence_statuses` are
+[configured](config.md#threat_model), as is the `risks[]` identifier
+format.
 
-`document_statuses`, `control_statuses`, `evidence_levels`, and
-`evidence_statuses` are configuration: they describe a project's own
-workflow and no rule here keys off them.
-
-That split is the same policy-versus-mechanics boundary that keeps a
-general-purpose rule language out of the configuration.
+[schema.md](schema.md#schema-owned-versus-configured-vocabularies) states
+the rule that decides which side a vocabulary falls on, and why.

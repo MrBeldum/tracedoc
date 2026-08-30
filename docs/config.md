@@ -18,7 +18,6 @@ Example:
   "milestone_pattern": "^M(?:[0-9]|1[01])$",
   "issue_pattern": "^#[1-9][0-9]*$",
   "risk_pattern": "^R(?:[1-9]|1[0-2])$",
-  "owner_pattern": "^@[a-z][a-z0-9-]*$",
   "workstreams": ["Protocol", "Platform"],
   "issue_url_base": "https://github.com/example/project/issues/",
   "generator_name": "tracedoc",
@@ -41,6 +40,7 @@ Example:
     }
   },
   "threat_model": {
+    "owner_pattern": "^@[a-z][a-z0-9-]*$",
     "document_statuses": ["draft", "accepted"],
     "control_statuses": ["planned", "in-progress", "implemented"],
     "evidence_levels": ["unit", "integration", "adversarial"],
@@ -75,10 +75,9 @@ tracker — and apply identically to every document type:
 | `milestone_pattern`   | anchored regular expression (`^...$`, at most 256 bytes) for `owner.milestone` |
 | `issue_pattern`       | anchored regular expression for `owner.issue`                                |
 | `risk_pattern`        | anchored regular expression for risk-record identifiers                      |
-| `owner_pattern`       | anchored regular expression for the accountable principal (`owner.principal` and the threat model's top-level `owner`) |
 | `workstreams`         | non-empty list of allowed `owner.workstream` values                          |
-| `issue_url_base`      | HTTPS URL ending in `/`; issue references are appended without their `#`     |
-| `generator_name`      | generator name shown in generated headers                                    |
+| `issue_url_base`      | HTTPS URL on a lowercase DNS host, path ending in `/`; no user information, port, query, or fragment, and no whitespace, backslash, or control characters. Issue references are appended without their `#` |
+| `generator_name`      | generator name shown in generated headers; non-empty, at most 256 bytes, no control characters |
 | `version_transitions` | boolean switches for the `compare` command; see [cli.md](cli.md), including the reachability caveat on `require_major_on_schema_change` |
 
 ## Per-document-type sections
@@ -110,6 +109,7 @@ no section is exit `2`.
 
 | Member              | Rules                                                                 |
 | ------------------- | --------------------------------------------------------------------- |
+| `owner_pattern`     | anchored regular expression for the accountable principal (`owner.principal` and the top-level `owner`). Only this document type has one — a requirements matrix's `owner` carries routing alone |
 | `document_statuses` | non-empty list of allowed top-level `status` values (`^[a-z][a-z0-9-]*$`) |
 | `control_statuses`  | non-empty list of allowed `controls[].status` values                  |
 | `evidence_levels`   | non-empty list of allowed `planned_evidence[].level` values           |
@@ -118,35 +118,29 @@ no section is exit `2`.
 | `coverage`          | boolean switches for the declared-entity coverage rules; see below    |
 | `render`            | presentation strings; see below                                       |
 
-These four vocabularies describe a project's own workflow, and no validation
-rule keys off their values. The vocabularies that rules *do* depend on —
-`likelihood`, `severity`, `priority`, `treatment`, and decision `status` —
-are schema-owned, as are every collection's identifier format except risks
-([schema-threat-model.md](schema-threat-model.md)).
+These four vocabularies are a project's own workflow labels. The ones the
+tool itself depends on — `likelihood`, `severity`, `priority`, `treatment`,
+and `decisions[].status` — are schema-owned, as is every collection's
+identifier format except risks.
+[schema.md](schema.md#schema-owned-versus-configured-vocabularies) states
+the rule that decides which side a vocabulary falls on.
 
 `reference_hosts` is the allowlist for the `url` form of a diagram,
-decision, or risk reference: a document may only point at a host the
-consumer has declared. Omitting it, or leaving it empty, is legal and means
-this consumer accepts repository-relative references only — the reproducible
-default, since a repository-relative reference is version-pinned with the
-document while an external one can change after review.
+decision, or risk reference: a document may only point at a host declared
+here. Omitting it, or leaving it empty, is legal and accepts
+repository-relative references only. See
+[schema-threat-model.md](schema-threat-model.md#references) for why that is
+the reproducible default.
 
-`coverage`:
-
-| Switch                         | Rejects                                     |
-| ------------------------------ | ------------------------------------------- |
-| `require_asset_coverage`       | an asset no threat links to                 |
-| `require_boundary_coverage`    | a trust boundary no threat links to         |
-| `require_flow_coverage`        | a data flow no threat links to              |
-| `require_entry_point_coverage` | an entry point no threat both crosses the boundary of and travels a flow of |
-| `require_control_coverage`     | a control no threat links to                |
-| `require_risk_coverage`        | a risk no threat links to                   |
-| `require_evidence_per_threat`  | a threat no planned evidence names          |
+`coverage` holds seven switches — `require_asset_coverage`,
+`require_boundary_coverage`, `require_flow_coverage`,
+`require_entry_point_coverage`, `require_control_coverage`,
+`require_risk_coverage`, and `require_evidence_per_threat`. What each one
+rejects, and what "analysed" means, is specified once in
+[schema-threat-model.md](schema-threat-model.md#coverage).
 
 Each switch defaults to `false` when omitted, so a project can adopt the
-document type first and tighten coverage as the model fills in. See
-[schema-threat-model.md](schema-threat-model.md#coverage) for what counts
-as analysed and why.
+document type first and tighten coverage as the model fills in.
 
 ### `render` (per section)
 
@@ -155,6 +149,11 @@ as analysed and why.
 | `source_name`        | the source file name shown in the generated header                        |
 | `regenerate_command` | shown in the generated footer and in `render -check` failure messages     |
 | `check_command`      | shown in the generated footer                                             |
+
+Every entry in a configured value list — `workstreams`,
+`verification_levels`, and the four threat-model vocabularies — is also
+non-blank, at most 256 bytes, free of control characters, and unique within
+its list.
 
 All render strings are single-line and bounded. Together with the shared
 `issue_url_base` and `generator_name`, they are trusted consumer content:
@@ -166,7 +165,10 @@ without content escaping, so review them like code.
 Each document type has an embedded default template. A consumer template
 supplied with `render -template` replaces presentation entirely while
 keeping validation and data mechanics. It must define a `document`
-template, and the template file is limited to 1 MiB. It receives:
+template whose body is more than whitespace — a file that puts all its
+content in other `{{define}}` blocks is rejected rather than silently
+rendering nothing — and the template file is limited to 1 MiB. It
+receives:
 
 - `.Document` — the validated document;
 - `.Render` — the resolved presentation options;
@@ -184,14 +186,25 @@ template, and the template file is limited to 1 MiB. It receives:
 Free-text document fields must always pass through the escaping functions
 (`htmlText`, `prose`, `table`, `linkLabel`, `inlineValues`,
 `linkDestination`, `inlineCode`); emitting document fields raw lets
-document authors inject Markdown or HTML into the rendered output. Stable
-ID fields (`^[A-Z][A-Z0-9]*-[0-9]{3}$`), standard keys
-(`^[A-Z][A-Z0-9]*(?:[-.][A-Z0-9]+)*$`), and the fixed enum vocabularies
-(`applicability`, `evidence_status`, `likelihood`, `severity`, `priority`,
-`treatment`) are
-exempt in the default templates and may be emitted bare only because the
-schema constrains their character sets to values that cannot carry Markdown
-or HTML structure; anything else emitted raw is an injection risk. Section
+document authors inject Markdown or HTML into the rendered output.
+
+A value may be emitted bare **only** when its character set is fixed by
+something the document author cannot change. That covers stable ID fields
+(`^[A-Z][A-Z0-9]*-[0-9]{3}$`), the other schema-owned collection
+identifiers, standard keys (`^[A-Z][A-Z0-9]*(?:[-.][A-Z0-9]+)*$`), the
+schema-owned enum vocabularies (`applicability`, `evidence_status`,
+`likelihood`, `severity`, `priority`, `treatment`, `decisions[].status`),
+and the configured value lists (`document_statuses`, `control_statuses`,
+`evidence_levels`, `evidence_statuses`), whose entries config validation
+constrains to `^[a-z][a-z0-9-]*$`.
+
+It does **not** cover a value shaped by a consumer-supplied pattern.
+`risk_pattern` is checked only for anchoring and length, so a risk ID can
+legitimately contain backticks, pipes, or brackets; the default template
+therefore routes `risks[].id` through `inlineCode` like any other free-form
+value. Treat every consumer-patterned field this way: the pattern is
+policy, not a character-set guarantee. Anything else emitted raw is an
+injection risk. Section
 layout and precomputed-section membership may change in minor releases;
 pin the tool version to keep byte-identical output, and re-verify consumer
 templates when updating. Every escaping function also neutralizes

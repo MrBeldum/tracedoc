@@ -29,18 +29,28 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lists for actors, assets, boundaries, flows, controls, risks, and planned
   evidence.
 
+  - `affected_assets` becomes `asset_links`, and the threat-level
+    `trust_boundaries` list becomes `boundary_links` — the rename that
+    frees `trust_boundaries` to name the new top-level collection.
   - `disposition` becomes `treatment`, and its vocabulary changes from the
     outcome states `open`/`mitigated`/`accepted`/`transferred`/`avoided`
     to the decisions `mitigate`/`accept`/`avoid`/`transfer`. A threat now
     records what the project decided, not what has already happened.
   - `severity` narrows to `low`/`medium`/`high`; the former `critical`
-    level moves to the new `priority` vocabulary, which is derived from
-    likelihood and severity together.
+    level moves to the new `priority` vocabulary. Authors set `priority`
+    informed by likelihood and severity together; the tool does not derive
+    it or check it against them.
   - `owner` gains a required `principal`, separating the accountable
     person from the milestone, issue, and workstream that route the work.
-  - The `mitigations` object is removed. Requirement links move to
-    `controls[].requirement_links`, so a requirement obliges the control
-    that handles a threat rather than the threat itself.
+  - The `mitigations` object is removed. Its members move rather than
+    disappear: `requirements` becomes `controls[].requirement_links` and
+    `adrs` becomes `controls[].decision_links`, so an obligation attaches
+    to the control that handles a threat rather than to the threat itself;
+    `tests` becomes the declared `planned_evidence[]` collection, which
+    names the threats it covers; and `risks` becomes `risk_links` on both
+    threats and controls, resolved against declared `risks[]` records. A
+    threat no longer links to a decision directly — it reaches one through
+    a control.
   - Every array member must be present, even when empty, because `compare`
     distinguishes an omitted array from an empty one.
 
@@ -50,10 +60,13 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   members no longer count, which previously would have made the rules
   vacuously true.
 
-- **Configuration.** New top-level `owner_pattern`. The `threat_model`
-  section gains `document_statuses`, `control_statuses`, `evidence_levels`,
+- **Configuration.** The `threat_model` section gains `owner_pattern`,
+  `document_statuses`, `control_statuses`, `evidence_levels`,
   `evidence_statuses`, `reference_hosts`, and a `coverage` object of named
-  switches.
+  switches. `owner_pattern` is scoped to this section rather than shared at
+  the top level because only the threat model has an accountable
+  principal: a project keeping only a requirements matrix should not have
+  to supply a pattern for a concept its documents do not contain.
 
 ### Added
 
@@ -67,8 +80,27 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   one of a repository-relative `path` or an HTTPS `url` on a host declared
   in the new `reference_hosts` allowlist. Diagram generation and
   diagram-source parsing remain out of scope.
-- `check.LexicalURI` and `check.RepoRelativePath`, so both document types
-  share one definition of a safe reference rather than drifting apart.
+- `check.LexicalURI`, now shared by both document types so they cannot
+  drift apart on what a safe URI looks like, and `check.RepoRelativePath`
+  for the threat model's repository-relative references.
+
+### Fixed
+
+- **Control characters are now rejected in every validated string, as
+  documented.** `docs/schema.md` and the 0.1.0 changelog both stated that
+  validation rejects control characters and the Unicode line and paragraph
+  separators in every validated string. List items were checked; the
+  roughly sixty scalar prose fields were not, so a title, rationale, or
+  summary could carry a vertical tab or an ESC byte and still validate.
+  This affects **both** document types, including the requirements matrix
+  as released in 0.1.0. Rendered output was never exposed — every escaping
+  function neutralizes these code points — but a document that previously
+  smuggled a control character through a prose field is now rejected.
+- `risks[].id` is escaped in the default threat-model template. Risk
+  identifiers follow the consumer-supplied `risk_pattern`, which is checked
+  only for anchoring and length, so a permissive pattern let a risk ID
+  break out of its code span and inject Markdown — including a link to a
+  destination the `reference_hosts` allowlist would have refused.
 
 ## 0.1.0 - 2026-08-02
 

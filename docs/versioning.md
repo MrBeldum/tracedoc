@@ -29,20 +29,26 @@ Within a tool major version:
 Version `0.y.z` follows the same discipline with reduced stability
 promises: minor releases may break, and the changelog records every break.
 
-### Revising a schema that has no released consumer
+### The one in-place schema revision
 
-A document schema version identifies a contract that consumers have written
-documents against. While the tool is `0.y.z` and no released consumer has
-adopted a schema yet, that contract has no holders, so expanding the schema
-in place — keeping its version number — is the honest description of what
-happened: there is no earlier population of documents for a version bump to
-distinguish this from. The break is recorded in the changelog like any
-other, and consumers pinning an exact tool version are unaffected until
-they update.
+The threat-model schema was expanded in place — keeping its version number
+— after v0.1.0 was tagged, in
+[#7](https://github.com/sofired/tracedoc/issues/7). That was a deliberate
+one-time exception taken because the maintainers were not aware of any
+consumer authoring documents against the schema-1 threat model yet, and
+because the expansion was needed before the first consumer migrated rather
+than after.
 
-Once a schema has a released consumer, this route closes: any breaking
-change then takes a new schema version and a tool major bump, per the
-table above.
+It is worth being honest about the limits of that reasoning: this project
+has no telemetry and no consumer registry, so "no consumer had adopted it"
+is a judgement the maintainers asserted, not a fact they could verify.
+v0.1.0 was publicly tagged and pinnable through the Go module proxy from
+the day it shipped.
+
+**The exception is spent.** Every later breaking change to either schema
+takes a new schema version and a major tool release, per the table above,
+regardless of what adoption is believed to be. Treat this section as a
+record of what happened, not as a standing escape hatch.
 
 ## Release process
 

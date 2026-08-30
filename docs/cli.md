@@ -10,6 +10,9 @@ not on message wording.
 ## Global conventions
 
 - The command is named `tracedoc`.
+- `tracedoc help`, `-h`, `-help`, and `--help` print usage to standard
+  output and exit `0`. Passing `-h` to a subcommand prints that
+  subcommand's flags and exits `0`.
 - Diagnostics go to standard error, one `error: ...` line per finding.
 - Success summaries go to standard output.
 - All file paths are taken exactly as given (absolute or relative to the
@@ -17,7 +20,9 @@ not on message wording.
 - Exit codes:
   - `0` — success.
   - `1` — the input was well-formed but failed validation, comparison, or a
-    freshness check.
+    freshness check. `render -check` also exits `1` when the rendered file
+    cannot be read at all, missing or unreadable alike: from the caller's
+    point of view an output that cannot be compared is not current.
   - `2` — usage error, unreadable or lexically malformed input, an
     unidentifiable or unsupported document type, a missing configuration
     section, or an internal failure.
@@ -112,9 +117,12 @@ Two consequences for repository configuration:
   acquires an invalid document blocks every subsequent comparison —
   including the fix. This is deliberate (silently skipping the comparison
   would disable the gate exactly when it matters); repair requires an
-  administrator to merge the revert or correction past the failing check.
+  administrator to merge the revert or correction past the failing check
+  (see the README's "Concurrent changes" section, which covers preventing
+  this as well as recovering from it).
 
 ## `tracedoc version`
 
 Prints the tool version plus the CLI contract, per-document schema, and
-configuration schema versions, then exits `0`.
+configuration schema versions, then exits `0`. It takes no flags and
+ignores any that are supplied.
