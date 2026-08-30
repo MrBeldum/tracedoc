@@ -546,6 +546,120 @@ func TestThreatModelValidation(t *testing.T) {
 			mutate: func(doc *threats.Document) { doc.Assumptions = nil },
 		},
 
+		// One required-field miss per newly introduced entity type. These
+		// guard the call-site wiring rather than the shared helpers: a
+		// copy-pasted body that validated one field twice and skipped
+		// another would pass every other test in this table.
+		{
+			name:   "blank component purpose",
+			want:   "components[0].purpose: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Components[0].Purpose = "" },
+		},
+		{
+			name:   "blank actor trust",
+			want:   "actors[0].trust: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Actors[0].Trust = "" },
+		},
+		{
+			name:   "blank asset objective",
+			want:   "assets[0].objective: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Assets[0].Objective = "" },
+		},
+		{
+			name: "blank boundary implementation state",
+			want: "trust_boundaries[0].implementation_state: expected a non-empty string",
+			mutate: func(doc *threats.Document) {
+				doc.TrustBoundaries[0].ImplementationState = ""
+			},
+		},
+		{
+			name: "empty boundary security guarantees",
+			want: "trust_boundaries[0].security_guarantees: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.TrustBoundaries[0].SecurityGuarantees = []string{}
+			},
+		},
+		{
+			name:   "empty data-flow sequence",
+			want:   "data_flows[0].sequence: expected a non-empty array",
+			mutate: func(doc *threats.Document) { doc.DataFlows[0].Sequence = []string{} },
+		},
+		{
+			name:   "blank entry-point reached",
+			want:   "entry_points[0].reached: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.EntryPoints[0].Reached = "" },
+		},
+		{
+			name:   "blank assumption effect",
+			want:   "assumptions[0].effect: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Assumptions[0].Effect = "" },
+		},
+		{
+			name:   "blank decision title",
+			want:   "decisions[0].title: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Decisions[0].Title = "" },
+		},
+		{
+			name:   "unsupported decision status",
+			want:   `decisions[0].status: unsupported value "closed"`,
+			mutate: func(doc *threats.Document) { doc.Decisions[0].Status = "closed" },
+		},
+		{
+			name:   "blank risk title",
+			want:   "risks[0].title: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Risks[0].Title = "" },
+		},
+		{
+			name: "blank control implementation note",
+			want: "controls[0].implementation_note: expected a non-empty string",
+			mutate: func(doc *threats.Document) {
+				doc.Controls[0].ImplementationNote = ""
+			},
+		},
+		{
+			name:   "blank evidence description",
+			want:   "planned_evidence[0].description: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.PlannedEvidence[0].Description = "" },
+		},
+		{
+			name: "empty evidence threat links",
+			want: "planned_evidence[0].threat_links: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.PlannedEvidence[0].ThreatLinks = []string{}
+			},
+		},
+		{
+			name:   "blank observation alert condition",
+			want:   "observability[0].alert_condition: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Observability[0].AlertCondition = "" },
+		},
+		{
+			name: "empty observation control links",
+			want: "observability[0].control_links: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.Observability[0].ControlLinks = []string{}
+			},
+		},
+		{
+			name:   "blank diagram caption",
+			want:   "diagrams[0].caption: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Diagrams[0].Caption = "" },
+		},
+		{
+			name:   "nil observability array",
+			want:   "observability: expected an array",
+			mutate: func(doc *threats.Document) { doc.Observability = nil },
+		},
+		{
+			// treatment_rationale is optional for "mitigate", but a member
+			// that is present must still be a real value.
+			name: "blank-but-present treatment rationale",
+			want: "threats[0].treatment_rationale: expected a non-empty string",
+			mutate: func(doc *threats.Document) {
+				doc.Threats[0].TreatmentRationale = "   "
+			},
+		},
+
 		// Lexical bounds.
 		{
 			name: "oversized rationale",
@@ -647,6 +761,19 @@ func TestCoverageRules(t *testing.T) {
 			disable: func(c *threats.Coverage) { c.Risks = false },
 			mutate: func(doc *threats.Document) {
 				threatByID(t, doc, "THRT-003").RiskLinks = []string{}
+			},
+		},
+		{
+			name:    "unanalysed entry point",
+			want:    `entry_points: entry point "EP-002" is declared but never analysed`,
+			disable: func(c *threats.Coverage) { c.EntryPoints = false },
+			mutate: func(doc *threats.Document) {
+				// Break only the flow half of EP-002's match, keeping DF-002
+				// and TB-002 analysed by other threats.
+				threatByID(t, doc, "THRT-002").FlowLinks = []string{"DF-001"}
+				flowOnly := threatByID(t, doc, "THRT-003")
+				flowOnly.FlowLinks = []string{"DF-001", "DF-002"}
+				flowOnly.BoundaryLinks = []string{"TB-001"}
 			},
 		},
 		{
