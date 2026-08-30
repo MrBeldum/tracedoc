@@ -345,17 +345,18 @@ const validationHeading = "Validation"
 // AGENTS.md Validation block tells a contributor to run, in order.
 //
 // The commands live inside a fenced block, so the section is delimited by
-// the prose around the fences rather than by their contents. A "## " line
-// inside a fence is an example heading and a "# " line inside one is a
-// shell comment; reading either as structure would end the block early and
-// report the commands below it as missing.
+// the prose the rest of this package reads, not by the raw lines. A "## "
+// line inside a fence is an example heading, a "# " line inside one is a
+// shell comment, and a heading inside an HTML comment is struck out rather
+// than declared. Reading any of them as structure would start the block in
+// the wrong place or end it early, and report the commands as missing.
 func agentsSelfCheckCommands(fsys fs.FS) ([]string, error) {
 	data, err := fs.ReadFile(fsys, agentsFile)
 	if err != nil {
 		return nil, fmt.Errorf("read: %w", err)
 	}
 	lines := splitLines(string(data))
-	prose := blankFencedCode(string(data))
+	prose := blankHTMLComments(blankFencedCode(string(data)))
 
 	block := -1
 	for index, line := range prose {

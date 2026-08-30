@@ -638,6 +638,14 @@ func TestCheckSelfCheckCommands(t *testing.T) {
 		})
 		requireReport(t, errs, "AGENTS.md", "has no \"## Validation\" section")
 	})
+
+	t.Run("a heading struck out by an HTML comment does not start the block", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": strings.Replace(fixtureAgents, "## Validation\n",
+				"<!--\n## Validation\n\nThe old block, kept until the commands settle.\n-->\n\n## Validation\n", 1),
+		})
+		requireClean(t, errs)
+	})
 }
 
 func TestHeadingSlug(t *testing.T) {
