@@ -333,6 +333,14 @@ func reportCommandDrift(checker *check.Checker, location string, actual []string
 	}
 }
 
+// validationHeading names the AGENTS.md block that lists the self-check
+// commands. The scan is scoped to it for the same reason the workflow scan
+// is scoped to a named step: a go run ./cmd/tracedoc command written
+// elsewhere in AGENTS.md — a render example in prose, say — is not part of
+// the documented list, and reading it as one would report command drift
+// and name the wrong cause.
+const validationHeading = "## Validation"
+
 // agentsSelfCheckCommands returns the fixture self-check commands the
 // AGENTS.md Validation block tells a contributor to run, in order.
 func agentsSelfCheckCommands(fsys fs.FS) ([]string, error) {
@@ -340,14 +348,31 @@ func agentsSelfCheckCommands(fsys fs.FS) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read: %w", err)
 	}
+	lines := splitLines(string(data))
+	block := -1
+	for index, line := range lines {
+		if strings.TrimSpace(line) == validationHeading {
+			block = index
+			break
+		}
+	}
+	if block < 0 {
+		return nil, fmt.Errorf("has no %q section", validationHeading)
+	}
+
 	var commands []string
-	for _, line := range splitLines(string(data)) {
-		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, selfCheckPrefix) {
+	for _, line := range lines[block+1:] {
+		trimmed := strings.TrimSpace(line)
+		// A heading at the block's own level or above ends the block.
+		if strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "## ") {
+			break
+		}
+		if strings.HasPrefix(trimmed, selfCheckPrefix) {
 			commands = append(commands, trimmed)
 		}
 	}
 	if len(commands) == 0 {
-		return nil, fmt.Errorf("documents no %s command", selfCheckPrefix)
+		return nil, fmt.Errorf("documents no %s command in its %q section", selfCheckPrefix, validationHeading)
 	}
 	return commands, nil
 }

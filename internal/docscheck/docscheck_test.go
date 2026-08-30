@@ -590,6 +590,26 @@ func TestCheckSelfCheckCommands(t *testing.T) {
 		})
 		requireReport(t, errs, "AGENTS.md", "documents no go run ./cmd/tracedoc command")
 	})
+
+	t.Run("only the Validation block is read", func(t *testing.T) {
+		// A command shown elsewhere in AGENTS.md — here a render example
+		// in prose — is not part of the documented list, and reading it
+		// as one would report drift the contributor did not introduce.
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": fixtureAgents +
+				"\n## Rendering\n\n```sh\ngo run ./cmd/tracedoc render -config testdata/config.json" +
+				" -doc testdata/matrix.json -output testdata/matrix.md\n```\n",
+		})
+		requireClean(t, errs)
+	})
+
+	t.Run("an AGENTS.md without a Validation block is reported", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": "# tracedoc agent instructions\n\n## Scope\n\n```sh\n" +
+				"go run ./cmd/tracedoc validate -config testdata/config.json -doc testdata/matrix.json\n```\n",
+		})
+		requireReport(t, errs, "AGENTS.md", "has no \"## Validation\" section")
+	})
 }
 
 func TestHeadingSlug(t *testing.T) {
