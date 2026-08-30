@@ -3,7 +3,6 @@
   "milestone_pattern": "^M(?:[0-9]|1[01])$",
   "issue_pattern": "^#[1-9][0-9]*$",
   "risk_pattern": "^R(?:[1-9]|1[0-2])$",
-  "owner_pattern": "^@[a-z][a-z0-9-]*$",
   "workstreams": [
     "Protocol",
     "Platform"
@@ -48,6 +47,7 @@
     }
   },
   "threat_model": {
+    "owner_pattern": "^@[a-z][a-z0-9-]*$",
     "document_statuses": [
       "draft",
       "accepted"

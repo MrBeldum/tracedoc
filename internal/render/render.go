@@ -235,7 +235,7 @@ func markdownText(value, lineBreak string) string {
 // (Zl/Zp), and the bidirectional overrides and isolates are encoded
 // byte-by-byte, so the function is safe by
 // construction even for a caller that skipped upstream validation —
-// upstream bounds (check.BoundedControlFreeString, lexicalURI) remain the
+// upstream bounds (check.RequiredString, check.LexicalURI) remain the
 // primary defense; this is the belt to their braces.
 func LinkDestination(value string) string {
 	var escaped strings.Builder

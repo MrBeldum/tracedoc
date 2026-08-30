@@ -272,13 +272,13 @@ func TestConfigRejections(t *testing.T) {
 		},
 		{
 			name:   "missing owner pattern",
-			want:   "owner_pattern: expected a non-empty pattern",
-			mutate: func(c *Config) { c.OwnerPattern = "" },
+			want:   "threat_model.owner_pattern: expected a non-empty pattern",
+			mutate: func(c *Config) { c.ThreatModel.OwnerPattern = "" },
 		},
 		{
 			name:   "unanchored owner pattern",
-			want:   "owner_pattern: expected an anchored pattern",
-			mutate: func(c *Config) { c.OwnerPattern = "@[a-z]+" },
+			want:   "threat_model.owner_pattern: expected an anchored pattern",
+			mutate: func(c *Config) { c.ThreatModel.OwnerPattern = "@[a-z]+" },
 		},
 		{
 			name:   "empty document statuses",

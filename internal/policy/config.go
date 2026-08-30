@@ -46,7 +46,6 @@ type Config struct {
 	MilestonePattern   string               `json:"milestone_pattern"`
 	IssuePattern       string               `json:"issue_pattern"`
 	RiskPattern        string               `json:"risk_pattern"`
-	OwnerPattern       string               `json:"owner_pattern"`
 	Workstreams        []string             `json:"workstreams"`
 	IssueURLBase       string               `json:"issue_url_base"`
 	GeneratorName      string               `json:"generator_name"`
@@ -73,6 +72,12 @@ type RequirementsSection struct {
 // treatment stay schema-owned because the coupling and coverage rules
 // depend on their exact meaning.
 type ThreatModelSection struct {
+	// OwnerPattern lives here rather than at the top level because only
+	// this document type has an accountable principal: the requirements
+	// matrix's owner object carries routing alone. A project that keeps
+	// only a requirements matrix should not have to supply a pattern for
+	// a concept its documents do not contain.
+	OwnerPattern     string   `json:"owner_pattern"`
 	DocumentStatuses []string `json:"document_statuses"`
 	ControlStatuses  []string `json:"control_statuses"`
 	EvidenceLevels   []string `json:"evidence_levels"`
@@ -252,7 +257,6 @@ func (c *Config) validate() []string {
 	c.milestone = c.compilePattern(&errs, "milestone_pattern", c.MilestonePattern)
 	c.issue = c.compilePattern(&errs, "issue_pattern", c.IssuePattern)
 	c.risk = c.compilePattern(&errs, "risk_pattern", c.RiskPattern)
-	c.owner = c.compilePattern(&errs, "owner_pattern", c.OwnerPattern)
 
 	validateValueList(&errs, "workstreams", c.Workstreams, nil)
 
@@ -340,6 +344,7 @@ func (c *Config) validateThreatModelSection(
 	add func(location, format string, args ...any),
 ) {
 	section := c.ThreatModel
+	c.owner = c.compilePattern(errs, "threat_model.owner_pattern", section.OwnerPattern)
 	validateValueList(errs, "threat_model.document_statuses", section.DocumentStatuses, levelPattern)
 	validateValueList(errs, "threat_model.control_statuses", section.ControlStatuses, levelPattern)
 	validateValueList(errs, "threat_model.evidence_levels", section.EvidenceLevels, levelPattern)

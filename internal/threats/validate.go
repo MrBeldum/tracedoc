@@ -309,8 +309,9 @@ func (v *validator) declare(
 // tool does not own.
 func (v *validator) declareRisk(index int, id string) {
 	location := fmt.Sprintf("risks[%d].id", index)
-	// Bounds before pattern; see check.BoundedControlFreeString for why.
-	if !v.BoundedControlFreeString(location, id) {
+	// Bounds and control-character checks before the consumer pattern; see
+	// check.RequiredString for why.
+	if !v.RequiredString(location, id) {
 		return
 	}
 	if v.policy.Risk == nil || !v.policy.Risk.MatchString(id) {
@@ -626,13 +627,14 @@ func (v *validator) owner(location string, item *Owner) {
 	}
 	location += ".owner"
 	v.principal(location+".principal", item.Principal)
-	// Bounds before pattern; see check.BoundedControlFreeString for why.
-	if v.BoundedControlFreeString(location+".milestone", item.Milestone) &&
+	// Bounds and control-character checks before the consumer pattern; see
+	// check.RequiredString for why.
+	if v.RequiredString(location+".milestone", item.Milestone) &&
 		(v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone)) {
 		v.Add(location+".milestone", "invalid milestone")
 	}
 	if item.Issue != nil &&
-		v.BoundedControlFreeString(location+".issue", *item.Issue) &&
+		v.RequiredString(location+".issue", *item.Issue) &&
 		(v.policy.Issue == nil || !v.policy.Issue.MatchString(*item.Issue)) {
 		v.Add(location+".issue", "invalid issue reference")
 	}
@@ -645,7 +647,7 @@ func (v *validator) owner(location string, item *Owner) {
 // pattern. Accountability is never optional: an unattributed residual risk
 // is one nobody has agreed to carry.
 func (v *validator) principal(location, value string) {
-	if !v.BoundedControlFreeString(location, value) {
+	if !v.RequiredString(location, value) {
 		return
 	}
 	if v.policy.Owner == nil || !v.policy.Owner.MatchString(value) {
@@ -656,7 +658,7 @@ func (v *validator) principal(location, value string) {
 // reference resolves one required local link against its collection.
 // Resolution only; coverage accounting happens in analyse.
 func (v *validator) reference(location, id string, set *idSet) {
-	if !v.BoundedControlFreeString(location, id) {
+	if !v.RequiredString(location, id) {
 		return
 	}
 	if !check.Contains(set.declared, id) {
@@ -714,7 +716,7 @@ func (v *validator) referenceTarget(location string, ref Reference) {
 }
 
 func (v *validator) referenceURL(location, value string) {
-	if !v.BoundedControlFreeString(location, value) {
+	if !v.RequiredString(location, value) {
 		return
 	}
 	parsed, err := check.LexicalURI(value)

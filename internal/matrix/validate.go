@@ -229,13 +229,14 @@ func (v *validator) owner(location string, item *Owner) {
 		return
 	}
 	location += ".owner"
-	// Bounds before pattern; see check.BoundedControlFreeString for why.
-	if v.BoundedControlFreeString(location+".milestone", item.Milestone) &&
+	// Bounds and control-character checks before the consumer pattern; see
+	// check.RequiredString for why.
+	if v.RequiredString(location+".milestone", item.Milestone) &&
 		(v.policy.Milestone == nil || !v.policy.Milestone.MatchString(item.Milestone)) {
 		v.Add(location+".milestone", "invalid milestone")
 	}
 	if item.Issue != nil &&
-		v.BoundedControlFreeString(location+".issue", *item.Issue) &&
+		v.RequiredString(location+".issue", *item.Issue) &&
 		(v.policy.Issue == nil || !v.policy.Issue.MatchString(*item.Issue)) {
 		v.Add(location+".issue", "invalid issue reference")
 	}

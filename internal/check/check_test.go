@@ -43,10 +43,10 @@ func TestRequiredString(t *testing.T) {
 	})
 }
 
-func TestBoundedControlFreeString(t *testing.T) {
+func TestRequiredStringRejectsControlAndSeparatorCharacters(t *testing.T) {
 	t.Run("valid value passes", func(t *testing.T) {
 		c := &check.Checker{}
-		if !c.BoundedControlFreeString("field", "clean value") {
+		if !c.RequiredString("field", "clean value") {
 			t.Fatal("expected clean value to pass")
 		}
 		if len(c.Errs) != 0 {
@@ -56,7 +56,7 @@ func TestBoundedControlFreeString(t *testing.T) {
 
 	t.Run("blank value is rejected before the control-character check runs", func(t *testing.T) {
 		c := &check.Checker{}
-		if c.BoundedControlFreeString("field", "") {
+		if c.RequiredString("field", "") {
 			t.Fatal("expected blank value to fail")
 		}
 		if len(c.Errs) != 1 || c.Errs[0] != "field: expected a non-empty string" {
@@ -66,7 +66,7 @@ func TestBoundedControlFreeString(t *testing.T) {
 
 	t.Run("control character is rejected", func(t *testing.T) {
 		c := &check.Checker{}
-		if c.BoundedControlFreeString("field", "line one\nline two") {
+		if c.RequiredString("field", "line one\nline two") {
 			t.Fatal("expected control character to fail")
 		}
 		if len(c.Errs) != 1 || c.Errs[0] != "field: contains a control or line-separator character" {
@@ -269,9 +269,9 @@ func TestControlFreeString(t *testing.T) {
 	}
 }
 
-func TestBoundedControlFreeStringRejectsLineSeparators(t *testing.T) {
+func TestRequiredStringRejectsControlCharactersRejectsLineSeparators(t *testing.T) {
 	var c check.Checker
-	if c.BoundedControlFreeString("loc", "a\u2028b") {
+	if c.RequiredString("loc", "a\u2028b") {
 		t.Fatal("line separator accepted")
 	}
 	if len(c.Errs) != 1 || c.Errs[0] != "loc: contains a control or line-separator character" {
