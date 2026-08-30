@@ -610,6 +610,34 @@ func TestCheckSelfCheckCommands(t *testing.T) {
 		})
 		requireReport(t, errs, "AGENTS.md", "has no \"## Validation\" section")
 	})
+
+	t.Run("a shell comment in the block does not end it", func(t *testing.T) {
+		// The commands sit inside a fence, where a "# " line is a shell
+		// comment rather than a heading. Ending the block on one drops
+		// every command below it and reports them as missing.
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": strings.Replace(fixtureAgents,
+				"go run ./cmd/tracedoc compare",
+				"# compare is the run that catches drift\ngo run ./cmd/tracedoc compare", 1),
+		})
+		requireClean(t, errs)
+	})
+
+	t.Run("a heading quoted in a fence does not start the block", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": strings.Replace(fixtureAgents, "## Validation\n",
+				"## Conventions\n\nA section heading is written like this:\n\n"+
+					"```md\n## Validation\n```\n\n## Validation\n", 1),
+		})
+		requireClean(t, errs)
+	})
+
+	t.Run("a heading that merely starts with Validation is not the block", func(t *testing.T) {
+		errs := checkAll(t, map[string]string{
+			"AGENTS.md": strings.Replace(fixtureAgents, "## Validation\n", "## Validation Overview\n", 1),
+		})
+		requireReport(t, errs, "AGENTS.md", "has no \"## Validation\" section")
+	})
 }
 
 func TestHeadingSlug(t *testing.T) {

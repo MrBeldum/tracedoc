@@ -333,48 +333,66 @@ func reportCommandDrift(checker *check.Checker, location string, actual []string
 	}
 }
 
-// validationHeading names the AGENTS.md block that lists the self-check
+// validationHeading names the AGENTS.md section that lists the self-check
 // commands. The scan is scoped to it for the same reason the workflow scan
 // is scoped to a named step: a go run ./cmd/tracedoc command written
 // elsewhere in AGENTS.md — a render example in prose, say — is not part of
-// the documented list, and reading it as one would report command drift
-// and name the wrong cause.
-const validationHeading = "## Validation"
+// the documented list, and reading it as one reports command drift and
+// names the wrong cause.
+const validationHeading = "Validation"
 
 // agentsSelfCheckCommands returns the fixture self-check commands the
 // AGENTS.md Validation block tells a contributor to run, in order.
+//
+// The commands live inside a fenced block, so the section is delimited by
+// the prose around the fences rather than by their contents. A "## " line
+// inside a fence is an example heading and a "# " line inside one is a
+// shell comment; reading either as structure would end the block early and
+// report the commands below it as missing.
 func agentsSelfCheckCommands(fsys fs.FS) ([]string, error) {
 	data, err := fs.ReadFile(fsys, agentsFile)
 	if err != nil {
 		return nil, fmt.Errorf("read: %w", err)
 	}
 	lines := splitLines(string(data))
+	prose := blankFencedCode(string(data))
+
 	block := -1
-	for index, line := range lines {
-		if strings.TrimSpace(line) == validationHeading {
+	for index, line := range prose {
+		if level, text := headingAt(line); level == 2 && text == validationHeading {
 			block = index
 			break
 		}
 	}
 	if block < 0 {
-		return nil, fmt.Errorf("has no %q section", validationHeading)
+		return nil, fmt.Errorf("has no %q section", "## "+validationHeading)
 	}
 
 	var commands []string
-	for _, line := range lines[block+1:] {
-		trimmed := strings.TrimSpace(line)
+	for index := block + 1; index < len(lines); index++ {
 		// A heading at the block's own level or above ends the block.
-		if strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "## ") {
+		if level, _ := headingAt(prose[index]); level > 0 && level <= 2 {
 			break
 		}
-		if strings.HasPrefix(trimmed, selfCheckPrefix) {
+		if trimmed := strings.TrimSpace(lines[index]); strings.HasPrefix(trimmed, selfCheckPrefix) {
 			commands = append(commands, trimmed)
 		}
 	}
 	if len(commands) == 0 {
-		return nil, fmt.Errorf("documents no %s command in its %q section", selfCheckPrefix, validationHeading)
+		return nil, fmt.Errorf("documents no %s command in its %q section",
+			selfCheckPrefix, "## "+validationHeading)
 	}
 	return commands, nil
+}
+
+// headingAt returns the level and text of the ATX heading on line, or a
+// zero level if line carries no heading.
+func headingAt(line string) (int, string) {
+	match := atxHeading.FindStringSubmatch(line)
+	if match == nil {
+		return 0, ""
+	}
+	return len(match[1]), match[2]
 }
 
 // workflowSelfCheckCommands returns the fixture self-check commands run by
