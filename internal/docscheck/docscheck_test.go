@@ -1004,6 +1004,54 @@ func TestCodeSpanClosesOnTheLastOfTheBudget(t *testing.T) {
 	})
 }
 
+// TestCodeSpanDelimitersObeyTheBound pins the ceiling against the runs
+// themselves rather than against the distance between them. Two runs of
+// equal length with a byte between them close a span whatever their
+// length, so measuring the opening run without a ceiling would let a pair
+// of 8 KiB delimiters inspect 16 KiB -- a span the bound is meant to have
+// given up on. The opening run is measured under the ceiling too, and one
+// past it is literal text.
+func TestCodeSpanDelimitersObeyTheBound(t *testing.T) {
+	closes := func(length int) bool {
+		run := strings.Repeat("`", length)
+		_, _, ok := codeSpanEnd([]string{run + "x" + run}, 0, 0)
+		return ok
+	}
+	if !closes(maxCodeSpanScanBytes) {
+		t.Error("delimiters at the ceiling must still close")
+	}
+	if closes(maxCodeSpanScanBytes + 1) {
+		t.Error("delimiters past the ceiling must be literal text")
+	}
+}
+
+// TestCodeSpanClosesOnALaterLine covers the multi-line path through the
+// same measurement. A span whose closing run sits on a later line is the
+// case codeSpanEnd exists for -- a quoted "<!--" inside one would open a
+// comment that swallowed the rest of the document if the span were missed
+// -- and the run lengths have to match across the line break exactly as
+// they do within a line.
+func TestCodeSpanClosesOnALaterLine(t *testing.T) {
+	cases := []struct {
+		name  string
+		lines []string
+		close bool
+	}{
+		{"equal runs close across lines", []string{"``x", "x``"}, true},
+		{"longer run on the later line does not", []string{"``x", "x```"}, false},
+		{"shorter run on the later line does not", []string{"``x", "x`"}, false},
+		{"a blank line ends the paragraph first", []string{"``x", "", "x``"}, false},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, ok := codeSpanEnd(test.lines, 0, 0)
+			if ok != test.close {
+				t.Fatalf("codeSpanEnd(%q) closed = %v, want %v", test.lines, ok, test.close)
+			}
+		})
+	}
+}
+
 // TestCodeSpanBoundLeavesRealSpansIntact is the other half: the ceiling
 // must be unreachable by anything a document would legitimately contain.
 // A span just under the bound still closes; one past it is left as literal

@@ -32,9 +32,9 @@
 //     live Markdown. A repository path or a link quoted inside such a
 //     span is therefore never checked. No multi-line span appears in
 //     this repository's documentation today.
-//   - A backtick run's search for its closing run gives up after
-//     maxCodeSpanScanBytes, leaving the run as literal text. That is what
-//     an unmatched run already becomes, so the ceiling changes no
+//   - A backtick run longer than maxCodeSpanScanBytes, or whose search
+//     for its closing run runs that far, is left as literal text. That is
+//     what an unmatched run already becomes, so the ceiling changes no
 //     behavior a real document can observe: it takes a span longer than
 //     the bound to reach one, and the longest in this repository is two
 //     orders of magnitude below it. Without the ceiling, a paragraph
@@ -77,12 +77,19 @@ const (
 	releaseWorkflowFile = ".github/workflows/release.yml"
 )
 
-// maxCodeSpanScanBytes bounds how far one backtick run may search for the
-// run that closes it. Beyond the bound the run is left as literal text —
-// the same outcome an unmatched run already produces, so nothing a real
-// document can express changes: reaching the ceiling needs a single code
-// span longer than 8 KiB, where the longest in this repository is under a
-// hundred bytes.
+// maxCodeSpanScanBytes bounds both how long a backtick run may be and how
+// far it may search for the run that closes it. Beyond the bound the run
+// is left as literal text — the same outcome an unmatched run already
+// produces, so nothing a real document can express changes: reaching the
+// ceiling needs a single code span longer than 8 KiB, where the longest
+// in this repository is under a hundred bytes.
+//
+// The bound is a ceiling on each of the two, not on their sum, so one
+// call reads at most twice it: an opening run at the ceiling, then a
+// search that runs the same distance. Measuring a candidate run also
+// reads one byte past the opening's length, which is what tells an exact
+// closing run from a longer one, and that byte can fall past a budget
+// the next iteration is about to find spent.
 //
 // The ceiling exists because the search is per run: a paragraph of runs
 // that never close makes each one rescan everything after it. Measured
@@ -814,7 +821,16 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 	if position >= len(lines[index]) || lines[index][position] != '`' {
 		return 0, 0, false
 	}
-	opening := leadingRun(lines[index][position:], '`')
+	// The opening run is measured under the same ceiling as the search
+	// that follows it, and a run past the ceiling is left as literal
+	// text. Without that, a pair of oversized delimiters would close a
+	// span the ceiling is meant to have given up on -- two runs of 8 KiB
+	// and one byte between them inspect 16 KiB -- and every measurement
+	// below would be free to read a run that long.
+	opening := leadingRunAtMost(lines[index][position:], '`', maxCodeSpanScanBytes+1)
+	if opening > maxCodeSpanScanBytes {
+		return 0, 0, false
+	}
 	scan := position + opening
 	budget := maxCodeSpanScanBytes
 	for cursor := index; cursor < len(lines); cursor++ {
@@ -842,12 +858,12 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 			//
 			// The limit is not clamped to the remaining budget. Doing so
 			// would leave a run of exactly opening backticks
-			// indistinguishable from a longer one, and the cheap reading
-			// -- calling it unmatched -- turns a closing run that lands
-			// on the last of the budget into literal text. Reading one
-			// past opening costs at most the opening run's own length,
-			// once per call, against a budget the next iteration is
-			// about to find spent.
+			// indistinguishable from a longer one, and resolving that
+			// ambiguity as a non-match turns a closing run landing on
+			// the last of the budget into literal text. Reading one past
+			// opening costs at most the opening run's own length, once
+			// per call, against a budget the next iteration is about to
+			// find spent.
 			run := leadingRunAtMost(line[scan:], '`', opening+1)
 			if run == opening {
 				return cursor, scan + opening, true
