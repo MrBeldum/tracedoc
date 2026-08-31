@@ -12,34 +12,34 @@ const SchemaVersion = 1
 // architecture graph the review reasons over, the assurance records that
 // carry traceability, and the threats themselves.
 type Document struct {
-	DocumentType    string         `json:"document_type"`
-	SchemaVersion   int            `json:"schema_version"`
-	DocumentVersion string         `json:"document_version"`
-	LastReviewed    string         `json:"last_reviewed"`
-	Status          string         `json:"status"`
-	Owner           string         `json:"owner"`
-	Summary         string         `json:"summary"`
-	Scope           *Scope         `json:"scope"`
-	Assumptions     []Assumption   `json:"assumptions"`
-	OpenQuestions   []string       `json:"open_questions"`
-	Diagrams        []Diagram      `json:"diagrams"`
-	Components      []Component    `json:"components"`
-	Actors          []Actor        `json:"actors"`
-	AttackerModel   *AttackerModel `json:"attacker_model"`
-	Assets          []Asset        `json:"assets"`
-	TrustBoundaries []Boundary     `json:"trust_boundaries"`
-	DataFlows       []DataFlow     `json:"data_flows"`
-	EntryPoints     []EntryPoint   `json:"entry_points"`
-	Decisions       []Decision     `json:"decisions"`
-	Risks           []Risk         `json:"risks"`
-	Controls        []Control      `json:"controls"`
-	PlannedEvidence []Evidence     `json:"planned_evidence"`
-	Observability   []Observation  `json:"observability"`
-	Threats         []Threat       `json:"threats"`
-	Criticality     []Criticality  `json:"criticality"`
-	TopAbusePaths   []string       `json:"top_abuse_path_links"`
-	FocusPaths      []FocusPath    `json:"focus_paths"`
-	Supersessions   []Supersession `json:"supersessions"`
+	DocumentType      string         `json:"document_type"`
+	SchemaVersion     int            `json:"schema_version"`
+	DocumentVersion   string         `json:"document_version"`
+	LastReviewed      string         `json:"last_reviewed"`
+	Status            string         `json:"status"`
+	Owner             string         `json:"owner"`
+	Summary           string         `json:"summary"`
+	Scope             *Scope         `json:"scope"`
+	Assumptions       []Assumption   `json:"assumptions"`
+	OpenQuestions     []string       `json:"open_questions"`
+	Diagrams          []Diagram      `json:"diagrams"`
+	Components        []Component    `json:"components"`
+	Actors            []Actor        `json:"actors"`
+	AttackerModel     *AttackerModel `json:"attacker_model"`
+	Assets            []Asset        `json:"assets"`
+	TrustBoundaries   []Boundary     `json:"trust_boundaries"`
+	DataFlows         []DataFlow     `json:"data_flows"`
+	EntryPoints       []EntryPoint   `json:"entry_points"`
+	Decisions         []Decision     `json:"decisions"`
+	Risks             []Risk         `json:"risks"`
+	Controls          []Control      `json:"controls"`
+	PlannedEvidence   []Evidence     `json:"planned_evidence"`
+	Observability     []Observation  `json:"observability"`
+	Threats           []Threat       `json:"threats"`
+	Criticality       []Criticality  `json:"criticality"`
+	TopAbusePathLinks []string       `json:"top_abuse_path_links"`
+	FocusPaths        []FocusPath    `json:"focus_paths"`
+	Supersessions     []Supersession `json:"supersessions"`
 }
 
 // Criticality defines what one priority level means for this project, with

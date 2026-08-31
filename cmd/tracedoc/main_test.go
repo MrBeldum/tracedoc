@@ -309,6 +309,27 @@ func TestValidateThreatModel(t *testing.T) {
 			},
 		},
 		{
+			name: "unsupported criticality level",
+			want: `criticality[0].level: unsupported value "urgent"`,
+			mutate: func(doc *threats.Document) {
+				doc.Criticality[0].Level = "urgent"
+			},
+		},
+		{
+			name: "absolute focus path",
+			want: "focus_paths[0].path: expected a relative path",
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[0].Path = "/etc/passwd"
+			},
+		},
+		{
+			name: "unknown threat in the headline list",
+			want: `top_abuse_path_links[0]: unknown threat "THRT-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.TopAbusePathLinks = []string{"THRT-404"}
+			},
+		},
+		{
 			name: "declared asset that no threat analyses",
 			want: `asset "AST-002" is declared but never analysed`,
 			mutate: func(doc *threats.Document) {

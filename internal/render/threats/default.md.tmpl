@@ -139,9 +139,9 @@
 {{end}}{{else}}No priority calibration recorded.
 {{end}}## Start here
 
-{{if .TopAbusePaths}}The abuse paths a reviewer should follow first.
+{{if .TopAbusePathLinks}}The abuse paths a reviewer should follow first.
 
-{{range $index, $threat := .TopAbusePaths}}{{add1 $index}}. [`{{$threat.ID}}`](#{{anchorHref $threat.ID}}) — {{prose $threat.Title}} (`{{$threat.Priority}}`)
+{{range $index, $threat := .TopAbusePathLinks}}{{add1 $index}}. [`{{$threat.ID}}`](#{{anchorHref $threat.ID}}) — {{prose $threat.Title}} (`{{$threat.Priority}}`)
 {{end}}
 {{else}}No headline abuse paths recorded.
 {{end}}## Assets

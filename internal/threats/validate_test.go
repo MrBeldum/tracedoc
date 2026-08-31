@@ -703,20 +703,20 @@ func TestThreatModelValidation(t *testing.T) {
 			name: "unknown threat in the headline list",
 			want: `top_abuse_path_links[0]: unknown threat "THRT-404"`,
 			mutate: func(doc *threats.Document) {
-				doc.TopAbusePaths = []string{"THRT-404"}
+				doc.TopAbusePathLinks = []string{"THRT-404"}
 			},
 		},
 		{
 			name: "too few headline abuse paths",
 			want: "top_abuse_path_links: expected at least 2 entries",
 			mutate: func(doc *threats.Document) {
-				doc.TopAbusePaths = []string{"THRT-001"}
+				doc.TopAbusePathLinks = []string{"THRT-001"}
 			},
 		},
 		{
 			name:   "nil headline list",
 			want:   "top_abuse_path_links: expected an array",
-			mutate: func(doc *threats.Document) { doc.TopAbusePaths = nil },
+			mutate: func(doc *threats.Document) { doc.TopAbusePathLinks = nil },
 		},
 		{
 			name:   "nil criticality array",
@@ -1293,7 +1293,7 @@ func TestQuantitativeLimitsAreConsumerPolicy(t *testing.T) {
 	doc := fixtureDocument(t)
 	doc.Criticality = doc.Criticality[:1]
 	doc.Criticality[0].Examples = []string{"A single worked example."}
-	doc.TopAbusePaths = []string{"THRT-001"}
+	doc.TopAbusePathLinks = []string{"THRT-001"}
 
 	if errs := threats.Validate(doc, unlimited, fixtureIndex()); len(errs) > 0 {
 		t.Fatalf("limits applied when the consumer set none:\n%s", errs)

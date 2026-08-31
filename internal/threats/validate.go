@@ -222,7 +222,6 @@ func (v *validator) document(doc Document) {
 	v.requireArray("decisions", doc.Decisions == nil)
 	v.requireArray("risks", doc.Risks == nil)
 	v.requireArray("observability", doc.Observability == nil)
-	v.requireArray("criticality", doc.Criticality == nil)
 	v.requireArray("focus_paths", doc.FocusPaths == nil)
 	v.assumptionBodies(doc.Assumptions)
 	v.StringList("open_questions", doc.OpenQuestions, false)
@@ -241,7 +240,7 @@ func (v *validator) document(doc Document) {
 	v.observationBodies(doc.Observability)
 	v.threatBodies(doc.Threats)
 	v.criticality(doc.Criticality)
-	v.topAbusePaths(doc.TopAbusePaths)
+	v.topAbusePaths(doc.TopAbusePathLinks)
 	v.focusPaths(doc.FocusPaths)
 	v.supersessions(doc.Supersessions)
 	v.analyse(doc)
@@ -885,6 +884,16 @@ func (v *validator) coverage() {
 // rather than a project extension; duplicates are rejected because the
 // level is the record's key.
 func (v *validator) criticality(items []Criticality) {
+	// Presence is checked here rather than alongside the other optional
+	// arrays so the completeness loop below can return early. That loop is
+	// keyed off the fixed priority vocabulary rather than off anything the
+	// document declared, so on a nil array it would report every level as
+	// missing — five diagnostics for one root cause, where an omitted
+	// assets array reports one.
+	if items == nil {
+		v.Add("criticality", "expected an array")
+		return
+	}
 	levels := make(map[string]struct{}, len(items))
 	for index, item := range items {
 		location := fmt.Sprintf("criticality[%d]", index)
@@ -919,16 +928,9 @@ func (v *validator) criticality(items []Criticality) {
 // editorial judgement about narrative, and a list that merely repeats every
 // critical threat has made no such judgement.
 func (v *validator) topAbusePaths(ids []string) {
-	if !v.StringList("top_abuse_path_links", ids, false) {
+	v.referenceList("top_abuse_path_links", ids, v.threats, false)
+	if ids == nil {
 		return
-	}
-	for index, id := range ids {
-		if !check.Contains(v.threats.declared, id) {
-			v.Addf(
-				fmt.Sprintf("top_abuse_path_links[%d]", index),
-				"unknown threat %q", id,
-			)
-		}
 	}
 	limits := v.policy.Limits
 	if limits.MinTopAbusePaths > 0 && len(ids) < limits.MinTopAbusePaths {

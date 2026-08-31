@@ -359,13 +359,13 @@ present:
 | ------------ | ------ | -------------------------------------------------- |
 | `level`      | string | a `priority` value (schema-owned); unique          |
 | `definition` | string | non-empty; what this level means for this project  |
-| `examples`   | array  | non-empty; worked examples at this level           |
+| `examples`   | array  | non-empty, unique; worked examples at this level   |
 
 `priority` is a schema-owned vocabulary, but what separates one level from
-the next is a project's own judgement about blast radius. A model that
-ranks threats without recording that judgement leaves its most consequential
-field unfalsifiable: a reader cannot tell a miscalibrated ranking from an
-honest disagreement about the scale.
+the next is a project's own judgement about blast radius. Without that
+judgement written down, a reader cannot tell a miscalibrated ranking from an
+honest disagreement about the scale — which makes the model's most
+consequential field the one nobody can check.
 
 The level is the record's key, so there is no separate identifier — nothing
 links to a calibration entry. Duplicated levels are rejected.
@@ -378,8 +378,8 @@ right answer differs between a small service and a platform.
 
 ## `top_abuse_path_links`
 
-A required array, possibly empty, of declared threat IDs: the abuse paths a
-reviewer should follow first. Bounded by the configured
+A required array, possibly empty, of unique declared threat IDs: the abuse
+paths a reviewer should follow first. Bounded by the configured
 `min_top_abuse_paths` and `max_top_abuse_paths`.
 
 This is deliberately **not** derived from `priority`. "The paths to read
@@ -394,7 +394,7 @@ should say so.
 | -------------- | ------ | -------------------------------------------- |
 | `path`         | string | repository-relative, unique; same rules as a [reference path](#references) |
 | `why`          | string | non-empty; why this location deserves scrutiny |
-| `threat_links` | array  | non-empty; declared threat IDs                |
+| `threat_links` | array  | non-empty, unique; declared threat IDs        |
 
 The model's link from a threat to where that threat actually lives. No
 other collection carries it: `components` describe what the system is made
@@ -444,6 +444,7 @@ incrementally can turn one off rather than deleting the entity:
 | `require_control_coverage`      | a control no threat links to                           |
 | `require_risk_coverage`         | a risk no threat links to                              |
 | `require_evidence_per_threat`   | a threat no planned evidence names                     |
+| `require_criticality_for_every_priority` | a `priority` level with no [calibration entry](#criticality) |
 
 Coverage is credited **only** from `threats[]` and, for the last rule, from
 `planned_evidence[].threat_links`. A boundary named by a data flow, or a

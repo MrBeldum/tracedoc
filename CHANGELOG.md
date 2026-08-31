@@ -98,7 +98,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   drift apart on what a safe URI looks like, and `check.RepoRelativePath`
   for the threat model's repository-relative references.
 
-
 - **Threat-model review guidance.** Three collections that help a reader
   navigate a model rather than describe the system
   ([#9](https://github.com/sofired/tracedoc/issues/9)):
@@ -122,6 +121,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   between a small service and a platform. A negative bound, or a maximum
   below its own minimum, is rejected when the configuration loads.
 
+- **No `quality_checks` collection**, deliberately. A model's own
+  completeness self-assessment duplicates what this tool already proves —
+  entry-point, boundary, asset, flow, control, risk and evidence coverage,
+  requirement resolution, and required assumptions and open questions are
+  each enforced — and a hand-maintained claim can go stale and contradict
+  the validator beside it. `docs/schema-threat-model.md` carries the
+  mapping. The claims that remain are process notes about how a review was
+  run, which belong in the pull request that changed the model.
+
+  This is schema-or-nothing rather than schema-versus-template: unknown
+  members are rejected, so a collection absent from the schema cannot be in
+  a document for a consumer template to render.
+
 ### Fixed
 
 - **Control characters are now rejected in every validated string, as
@@ -139,22 +151,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only for anchoring and length, so a permissive pattern let a risk ID
   break out of its code span and inject Markdown — including a link to a
   destination the `reference_hosts` allowlist would have refused.
-
-
-### Notes
-
-- **No `quality_checks` collection**, deliberately. A model's own
-  completeness self-assessment duplicates what this tool already proves —
-  entry-point, boundary, asset, flow, control, risk and evidence coverage,
-  requirement resolution, and required assumptions and open questions are
-  each enforced — and a hand-maintained claim can go stale and contradict
-  the validator beside it. `docs/schema-threat-model.md` carries the
-  mapping. The claims that remain are process notes about how a review was
-  run, which belong in the pull request that changed the model.
-
-  This is schema-or-nothing rather than schema-versus-template: unknown
-  members are rejected, so a collection absent from the schema cannot be in
-  a document for a consumer template to render.
 
 ## 0.1.0 - 2026-08-02
 

@@ -546,7 +546,7 @@ func TestReviewGuidanceEscaping(t *testing.T) {
 func TestEmptyReviewGuidanceRenders(t *testing.T) {
 	doc := fixtureDocument(t)
 	doc.Criticality = nil
-	doc.TopAbusePaths = nil
+	doc.TopAbusePathLinks = nil
 	doc.FocusPaths = nil
 
 	rendered, err := Render(doc, fixtureOptions(), "")

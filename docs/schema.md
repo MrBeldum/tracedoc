@@ -23,6 +23,9 @@ validation:
 - exactly one top-level JSON value; and
 - a top-level `document_type` member naming the schema family.
 
+Every declared array of strings rejects duplicate entries, so a list can
+never assert the same thing twice.
+
 Every validated string field is non-blank (a value of only whitespace is
 rejected), limited to 16 KiB, and free of the code points below. All string fields are
 plain text: authored Markdown and HTML are not supported, and the renderer

@@ -201,7 +201,7 @@ receives:
   `.Ownership`, `.Standards`; for threat models: `.PriorityCounts`,
   `.TreatmentCounts`, `.Diagrams`, `.Assets`, `.Boundaries`, `.Flows`,
   `.EntryPoints`, `.Decisions`, `.Risks`, `.Controls`, `.Evidence`,
-  `.Sections`, `.TopAbusePaths`, `.FocusPaths`; and
+  `.Sections`, `.TopAbusePathLinks`, `.FocusPaths`; and
 - the template functions `anchor`, `anchorHref`, `htmlText`, `inlineCode`,
   `inlineValues`, `issueURL`, `join`, `linkDestination`, `linkLabel`,
   `lower`, `owner`, `prose`, and `table`, plus `add1` for threat models

@@ -16,22 +16,22 @@ import (
 var defaultTemplate string
 
 type view struct {
-	Document        threats.Document
-	Render          render.Options
-	PriorityCounts  []count
-	TreatmentCounts []count
-	Diagrams        []diagram
-	Assets          []assetSection
-	Boundaries      []boundarySection
-	Flows           []flowSection
-	EntryPoints     []entryPoint
-	Decisions       []decision
-	Risks           []risk
-	Controls        []control
-	Evidence        []evidence
-	Sections        []prioritySection
-	TopAbusePaths   []threats.Threat
-	FocusPaths      []focusPath
+	Document          threats.Document
+	Render            render.Options
+	PriorityCounts    []count
+	TreatmentCounts   []count
+	Diagrams          []diagram
+	Assets            []assetSection
+	Boundaries        []boundarySection
+	Flows             []flowSection
+	EntryPoints       []entryPoint
+	Decisions         []decision
+	Risks             []risk
+	Controls          []control
+	Evidence          []evidence
+	Sections          []prioritySection
+	TopAbusePathLinks []threats.Threat
+	FocusPaths        []focusPath
 }
 
 // focusPath resolves each threat link to the threat itself, so the
@@ -289,9 +289,9 @@ func newView(doc threats.Document, options render.Options) view {
 	for _, item := range doc.Threats {
 		byID[item.ID] = item
 	}
-	for _, id := range doc.TopAbusePaths {
+	for _, id := range doc.TopAbusePathLinks {
 		if item, ok := byID[id]; ok {
-			result.TopAbusePaths = append(result.TopAbusePaths, item)
+			result.TopAbusePathLinks = append(result.TopAbusePathLinks, item)
 		}
 	}
 	for _, item := range doc.FocusPaths {
