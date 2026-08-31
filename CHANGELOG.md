@@ -165,7 +165,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Configuration paths now observe the same lexical rule as document
   paths.** `standard_sources[].path` had its own copy of the
   repository-relative rules, and the copies had diverged: the
-  configuration's swept only ASCII space and tab, so a path carrying a
+  configuration's copy swept only ASCII space and tab, so a path carrying a
   non-breaking space or a Unicode line separator passed configuration
   validation while the identical text in a document was rejected. Both now
   run `check.RepoRelativePath`; configuration keeps only its tighter
