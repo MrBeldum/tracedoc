@@ -295,7 +295,11 @@
 {{end}}{{else}}No observability expectations recorded.
 {{end}}## Where to look
 
-{{if .FocusPaths}}| Path | Why | Threats |
+{{if .FocusPaths}}{{/* A focus path is consumer free text in a table cell,
+so it goes through inlineCode: that escapes its pipes and widens the fence
+past any backtick run. The escaping is parity-safe only because validation
+rejects a backslash in the path — see the focus-path case in
+internal/threats/validate_test.go. */}}| Path | Why | Threats |
 | --- | --- | --- |
 {{range .FocusPaths}}| {{inlineCode .Path}} | {{table .Why}} | {{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{anchorHref $threat.ID}}){{end}} |
 {{end}}{{else}}No focus paths recorded.

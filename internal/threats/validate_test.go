@@ -741,6 +741,20 @@ func TestThreatModelValidation(t *testing.T) {
 			},
 		},
 		{
+			// Load-bearing, not merely tidy. The renderer emits a focus
+			// path through inlineCode, whose pipe escaping is only
+			// parity-safe while the value cannot contain a backslash: a
+			// trailing backslash before an escaped pipe would consume the
+			// escape and let the pipe open a new table column. Relaxing
+			// this rule without revisiting CodeText reintroduces the
+			// injection class the risks[].id fix closed.
+			name: "focus path with a backslash",
+			want: "focus_paths[0].path: contains a backslash or a scheme",
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[0].Path = `docs\a|b.md`
+			},
+		},
+		{
 			name: "duplicate focus path",
 			want: `duplicate focus path "diagrams/data-flow.md"`,
 			mutate: func(doc *threats.Document) {
