@@ -663,6 +663,110 @@ func TestThreatModelValidation(t *testing.T) {
 			},
 		},
 
+		// Priority calibration, the curated headline list, and the
+		// reviewer reading list.
+		{
+			name:   "unsupported criticality level",
+			want:   `criticality[0].level: unsupported value "urgent"`,
+			mutate: func(doc *threats.Document) { doc.Criticality[0].Level = "urgent" },
+		},
+		{
+			name:   "duplicate criticality level",
+			want:   `duplicate criticality level "critical"`,
+			mutate: func(doc *threats.Document) { doc.Criticality[1].Level = "critical" },
+		},
+		{
+			name:   "blank criticality definition",
+			want:   "criticality[0].definition: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.Criticality[0].Definition = "" },
+		},
+		{
+			name:   "empty criticality examples",
+			want:   "criticality[0].examples: expected a non-empty array",
+			mutate: func(doc *threats.Document) { doc.Criticality[0].Examples = []string{} },
+		},
+		{
+			name: "too few criticality examples",
+			want: "criticality[0].examples: expected at least 2 examples",
+			mutate: func(doc *threats.Document) {
+				doc.Criticality[0].Examples = []string{"Only one worked example."}
+			},
+		},
+		{
+			name: "priority with no calibration entry",
+			want: `criticality: priority "low" has no calibration entry`,
+			mutate: func(doc *threats.Document) {
+				doc.Criticality = doc.Criticality[:len(doc.Criticality)-1]
+			},
+		},
+		{
+			name: "unknown threat in the headline list",
+			want: `top_abuse_path_links[0]: unknown threat "THRT-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.TopAbusePaths = []string{"THRT-404"}
+			},
+		},
+		{
+			name: "too few headline abuse paths",
+			want: "top_abuse_path_links: expected at least 2 entries",
+			mutate: func(doc *threats.Document) {
+				doc.TopAbusePaths = []string{"THRT-001"}
+			},
+		},
+		{
+			name:   "nil headline list",
+			want:   "top_abuse_path_links: expected an array",
+			mutate: func(doc *threats.Document) { doc.TopAbusePaths = nil },
+		},
+		{
+			name:   "nil criticality array",
+			want:   "criticality: expected an array",
+			mutate: func(doc *threats.Document) { doc.Criticality = nil },
+		},
+		{
+			name:   "nil focus paths array",
+			want:   "focus_paths: expected an array",
+			mutate: func(doc *threats.Document) { doc.FocusPaths = nil },
+		},
+		{
+			name:   "absolute focus path",
+			want:   "focus_paths[0].path: expected a relative path",
+			mutate: func(doc *threats.Document) { doc.FocusPaths[0].Path = "/etc/passwd" },
+		},
+		{
+			name: "focus path with a scheme",
+			want: "focus_paths[0].path: contains a backslash or a scheme",
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[0].Path = "javascript:alert(1)"
+			},
+		},
+		{
+			name: "duplicate focus path",
+			want: `duplicate focus path "diagrams/data-flow.md"`,
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[1].Path = doc.FocusPaths[0].Path
+			},
+		},
+		{
+			name:   "blank focus path rationale",
+			want:   "focus_paths[0].why: expected a non-empty string",
+			mutate: func(doc *threats.Document) { doc.FocusPaths[0].Why = "" },
+		},
+		{
+			name: "focus path naming an unknown threat",
+			want: `focus_paths[0].threat_links[0]: unknown threat "THRT-404"`,
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[0].ThreatLinks = []string{"THRT-404"}
+			},
+		},
+		{
+			name: "focus path linking no threat",
+			want: "focus_paths[0].threat_links: expected a non-empty array",
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[0].ThreatLinks = []string{}
+			},
+		},
+
 		// Lexical bounds.
 		{
 			name: "oversized rationale",
@@ -1160,5 +1264,54 @@ func TestEverySliceMemberIsRequiredPresent(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+// TestQuantitativeLimitsAreConsumerPolicy covers the half of the new rules
+// that is configuration rather than schema. The schema says what these
+// collections are; how much of them a project expects is its own call, so
+// each limit must go quiet when the consumer does not set it.
+func TestQuantitativeLimitsAreConsumerPolicy(t *testing.T) {
+	unlimited := fixturePolicy(t)
+	unlimited.Limits = threats.Limits{}
+	unlimited.Coverage.Criticality = false
+
+	doc := fixtureDocument(t)
+	doc.Criticality = doc.Criticality[:1]
+	doc.Criticality[0].Examples = []string{"A single worked example."}
+	doc.TopAbusePaths = []string{"THRT-001"}
+
+	if errs := threats.Validate(doc, unlimited, fixtureIndex()); len(errs) > 0 {
+		t.Fatalf("limits applied when the consumer set none:\n%s", errs)
+	}
+
+	t.Run("maximum is enforced when set", func(t *testing.T) {
+		capped := fixturePolicy(t)
+		capped.Limits.MaxTopAbusePaths = 1
+		doc := fixtureDocument(t)
+		errs := threats.Validate(doc, capped, fixtureIndex())
+		want := "top_abuse_path_links: expected at most 1 entries"
+		if !strings.Contains(errs.Error(), want) {
+			t.Fatalf("expected %q, got:\n%s", want, errs)
+		}
+	})
+}
+
+// TestCriticalityCoverageSwitch is the switch-off half for the calibration
+// completeness rule, matching how every other coverage rule is tested.
+func TestCriticalityCoverageSwitch(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Criticality = doc.Criticality[:2]
+
+	strict := fixturePolicy(t)
+	errs := threats.Validate(doc, strict, fixtureIndex())
+	if !strings.Contains(errs.Error(), "has no calibration entry") {
+		t.Fatalf("expected a calibration gap to be rejected, got:\n%s", errs)
+	}
+
+	relaxed := fixturePolicy(t)
+	relaxed.Coverage.Criticality = false
+	if errs := threats.Validate(doc, relaxed, fixtureIndex()); len(errs) > 0 {
+		t.Fatalf("calibration rule ran with its switch off:\n%s", errs)
 	}
 }

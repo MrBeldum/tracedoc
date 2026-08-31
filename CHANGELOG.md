@@ -98,6 +98,30 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   drift apart on what a safe URI looks like, and `check.RepoRelativePath`
   for the threat model's repository-relative references.
 
+
+- **Threat-model review guidance.** Three collections that help a reader
+  navigate a model rather than describe the system
+  ([#9](https://github.com/sofired/tracedoc/issues/9)):
+
+  - `criticality[]` — what each `priority` level means for this project,
+    with worked examples. `priority` is schema-owned, but where its
+    boundaries fall is a project's judgement; recording it is what makes a
+    ranking reviewable rather than merely asserted.
+  - `top_abuse_path_links` — the abuse paths to read first, as declared
+    threat IDs. Deliberately not derived from `priority`: editorial order
+    is a judgement, and repeating every `critical` threat makes none.
+  - `focus_paths[]` — where in the repository a threat actually lives,
+    with the threats that make each location worth reading. No other
+    collection carries the link from a threat to an artifact.
+
+- Configuration: `threat_model.limits` (`min_criticality_examples`,
+  `min_top_abuse_paths`, `max_top_abuse_paths`), each defaulting to `0`
+  meaning unbounded, and an eighth coverage switch,
+  `require_criticality_for_every_priority`. Quantitative policy is
+  configuration rather than schema rule, because the right numbers differ
+  between a small service and a platform. A negative bound, or a maximum
+  below its own minimum, is rejected when the configuration loads.
+
 ### Fixed
 
 - **Control characters are now rejected in every validated string, as
@@ -115,6 +139,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only for anchoring and length, so a permissive pattern let a risk ID
   break out of its code span and inject Markdown — including a link to a
   destination the `reference_hosts` allowlist would have refused.
+
+
+### Notes
+
+- **No `quality_checks` collection**, deliberately. A model's own
+  completeness self-assessment duplicates what this tool already proves —
+  entry-point, boundary, asset, flow, control, risk and evidence coverage,
+  requirement resolution, and required assumptions and open questions are
+  each enforced — and a hand-maintained claim can go stale and contradict
+  the validator beside it. `docs/schema-threat-model.md` carries the
+  mapping. The claims that remain are process notes about how a review was
+  run, which belong in the pull request that changed the model.
+
+  This is schema-or-nothing rather than schema-versus-template: unknown
+  members are rejected, so a collection absent from the schema cannot be in
+  a document for a consumer template to render.
 
 ## 0.1.0 - 2026-08-02
 

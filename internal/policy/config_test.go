@@ -61,6 +61,13 @@ func TestFixtureConfigLoads(t *testing.T) {
 		len(threatsPolicy.ReferenceHosts) != 2 {
 		t.Fatalf("unexpected threat-model vocabularies: %#v", threatsPolicy)
 	}
+	if threatsPolicy.Limits != (threats.Limits{
+		MinCriticalityExamples: 2,
+		MinTopAbusePaths:       2,
+		MaxTopAbusePaths:       10,
+	}) {
+		t.Fatalf("unexpected limits: %#v", threatsPolicy.Limits)
+	}
 	if threatsPolicy.Coverage != (threats.Coverage{
 		Assets:      true,
 		Boundaries:  true,
@@ -69,6 +76,7 @@ func TestFixtureConfigLoads(t *testing.T) {
 		Controls:    true,
 		Risks:       true,
 		Evidence:    true,
+		Criticality: true,
 	}) {
 		t.Fatalf("unexpected coverage switches: %#v", threatsPolicy.Coverage)
 	}
@@ -299,6 +307,19 @@ func TestConfigRejections(t *testing.T) {
 			name:   "single-label reference host",
 			want:   "threat_model.reference_hosts[0]: expected a lowercase DNS host name",
 			mutate: func(c *Config) { c.ThreatModel.ReferenceHosts[0] = "localhost" },
+		},
+		{
+			name:   "negative limit",
+			want:   "threat_model.limits.min_criticality_examples: expected a non-negative integer",
+			mutate: func(c *Config) { c.ThreatModel.Limits.MinCriticalityExamples = -1 },
+		},
+		{
+			name: "top abuse path maximum below its minimum",
+			want: "threat_model.limits.max_top_abuse_paths: must not be smaller than min_top_abuse_paths (9)",
+			mutate: func(c *Config) {
+				c.ThreatModel.Limits.MinTopAbusePaths = 9
+				c.ThreatModel.Limits.MaxTopAbusePaths = 3
+			},
 		},
 		{
 			name: "duplicate reference host",

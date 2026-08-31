@@ -53,7 +53,13 @@ Example:
       "require_entry_point_coverage": true,
       "require_control_coverage": true,
       "require_risk_coverage": true,
-      "require_evidence_per_threat": true
+      "require_evidence_per_threat": true,
+      "require_criticality_for_every_priority": true
+    },
+    "limits": {
+      "min_criticality_examples": 2,
+      "min_top_abuse_paths": 3,
+      "max_top_abuse_paths": 10
     },
     "render": {
       "source_name": "threats.json",
@@ -116,6 +122,7 @@ no section is exit `2`.
 | `evidence_statuses` | non-empty list of allowed `planned_evidence[].status` values          |
 | `reference_hosts`   | optional list of lowercase multi-label DNS names; hosts an external reference may use |
 | `coverage`          | boolean switches for the declared-entity coverage rules; see below    |
+| `limits`            | quantitative bounds on the review-guidance collections; see below     |
 | `render`            | presentation strings; see below                                       |
 
 These four vocabularies are a project's own workflow labels. The ones the
@@ -139,8 +146,25 @@ the reproducible default.
 rejects, and what "analysed" means, is specified once in
 [schema-threat-model.md](schema-threat-model.md#coverage).
 
+`require_criticality_for_every_priority` is the eighth switch: it demands a
+`criticality` entry for each of the four `priority` levels.
+
 Each switch defaults to `false` when omitted, so a project can adopt the
 document type first and tighten coverage as the model fills in.
+
+`limits`:
+
+| Member                     | Bounds                                        |
+| -------------------------- | --------------------------------------------- |
+| `min_criticality_examples` | worked examples required per `criticality` entry |
+| `min_top_abuse_paths`      | fewest entries in `top_abuse_path_links`      |
+| `max_top_abuse_paths`      | most entries in `top_abuse_path_links`        |
+
+Each defaults to `0`, which disables that bound. Negative values are
+rejected, as is a maximum below its own minimum — a bound no document can
+satisfy is a configuration error worth catching at load time rather than as
+a puzzling rejection later. The schema says what these collections are; how
+much of them a project expects is its own call.
 
 ### `render` (per section)
 

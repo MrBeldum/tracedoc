@@ -36,7 +36,35 @@ type Document struct {
 	PlannedEvidence []Evidence     `json:"planned_evidence"`
 	Observability   []Observation  `json:"observability"`
 	Threats         []Threat       `json:"threats"`
+	Criticality     []Criticality  `json:"criticality"`
+	TopAbusePaths   []string       `json:"top_abuse_path_links"`
+	FocusPaths      []FocusPath    `json:"focus_paths"`
 	Supersessions   []Supersession `json:"supersessions"`
+}
+
+// Criticality defines what one priority level means for this project, with
+// worked examples. Priority is a schema-owned vocabulary, so a document
+// that ranks threats by it without saying what its levels mean leaves the
+// most consequential field in the model unfalsifiable: a reader cannot tell
+// a miscalibrated ranking from a disagreement about the scale. The level is
+// the record's key; there is no separate identifier because nothing links
+// to a calibration entry.
+type Criticality struct {
+	Level      string   `json:"level"`
+	Definition string   `json:"definition"`
+	Examples   []string `json:"examples"`
+}
+
+// FocusPath points a reviewer at a repository location that deserves
+// scrutiny, and names the threats that make it worth scrutinising. It is
+// the model's link from a threat to where that threat actually lives, which
+// no other collection carries: components describe the system, and evidence
+// describes what will test it, but neither says where to read. The path is
+// the record's key.
+type FocusPath struct {
+	Path        string   `json:"path"`
+	Why         string   `json:"why"`
+	ThreatLinks []string `json:"threat_links"`
 }
 
 // Scope records what the review covered and what it deliberately did not.

@@ -66,6 +66,17 @@ var PriorityOrder = []string{"critical", "high", "medium", "low"}
 // TreatmentOrder is the schema-owned display order for treatments.
 var TreatmentOrder = []string{"mitigate", "accept", "avoid", "transfer"}
 
+// Limits are the consumer's quantitative policy for the collections whose
+// usefulness depends on how much of them there is. They are configuration
+// rather than schema rules because the right numbers are a project's
+// judgement: a small service may calibrate two priority levels and name
+// three headline paths where a platform names ten. Zero disables a limit.
+type Limits struct {
+	MinCriticalityExamples int
+	MinTopAbusePaths       int
+	MaxTopAbusePaths       int
+}
+
 // Coverage selects which declared-entity coverage rules the validator
 // enforces. Each rule answers "was this thing the document declared
 // actually analysed?", and each is a named switch rather than a general
@@ -78,6 +89,10 @@ type Coverage struct {
 	Controls    bool
 	Risks       bool
 	Evidence    bool
+	// Criticality requires every priority value the schema defines to have
+	// a calibration entry. Off, a project may calibrate only the levels it
+	// actually uses.
+	Criticality bool
 }
 
 // Policy is the compiled consumer policy the validator applies on top of
@@ -94,6 +109,7 @@ type Policy struct {
 	EvidenceStatuses map[string]struct{}
 	ReferenceHosts   map[string]struct{}
 	Coverage         Coverage
+	Limits           Limits
 }
 
 // RequirementIndex resolves requirement links against a validated
@@ -206,6 +222,8 @@ func (v *validator) document(doc Document) {
 	v.requireArray("decisions", doc.Decisions == nil)
 	v.requireArray("risks", doc.Risks == nil)
 	v.requireArray("observability", doc.Observability == nil)
+	v.requireArray("criticality", doc.Criticality == nil)
+	v.requireArray("focus_paths", doc.FocusPaths == nil)
 	v.assumptionBodies(doc.Assumptions)
 	v.StringList("open_questions", doc.OpenQuestions, false)
 	v.diagrams(doc.Diagrams)
@@ -222,6 +240,9 @@ func (v *validator) document(doc Document) {
 	v.evidenceBodies(doc.PlannedEvidence)
 	v.observationBodies(doc.Observability)
 	v.threatBodies(doc.Threats)
+	v.criticality(doc.Criticality)
+	v.topAbusePaths(doc.TopAbusePaths)
+	v.focusPaths(doc.FocusPaths)
 	v.supersessions(doc.Supersessions)
 	v.analyse(doc)
 	v.coverage()
@@ -856,6 +877,83 @@ func (v *validator) coverage() {
 		for _, id := range check.SortedSetDifference(rule.set.declared, rule.set.analysed) {
 			v.Addf(rule.field, rule.message, rule.set.noun, id)
 		}
+	}
+}
+
+// criticality validates the priority calibration table. Levels come from
+// the schema's own priority vocabulary, so a level outside it is an error
+// rather than a project extension; duplicates are rejected because the
+// level is the record's key.
+func (v *validator) criticality(items []Criticality) {
+	levels := make(map[string]struct{}, len(items))
+	for index, item := range items {
+		location := fmt.Sprintf("criticality[%d]", index)
+		if v.Enum(location+".level", item.Level, priorityValues) &&
+			!v.InsertUnique(levels, item.Level) {
+			v.Addf(location+".level", "duplicate criticality level %q", item.Level)
+		}
+		v.RequiredString(location+".definition", item.Definition)
+		if v.StringList(location+".examples", item.Examples, true) &&
+			len(item.Examples) < v.policy.Limits.MinCriticalityExamples {
+			v.Addf(
+				location+".examples",
+				"expected at least %d examples",
+				v.policy.Limits.MinCriticalityExamples,
+			)
+		}
+	}
+	if !v.policy.Coverage.Criticality {
+		return
+	}
+	// Requiring every level is the consumer's call, so it hangs off the
+	// switch rather than off the vocabulary.
+	for _, level := range PriorityOrder {
+		if !check.Contains(levels, level) {
+			v.Addf("criticality", "priority %q has no calibration entry", level)
+		}
+	}
+}
+
+// topAbusePaths validates the curated headline list. It is deliberately not
+// derived from priority: "the paths a reader should follow first" is an
+// editorial judgement about narrative, and a list that merely repeats every
+// critical threat has made no such judgement.
+func (v *validator) topAbusePaths(ids []string) {
+	if !v.StringList("top_abuse_path_links", ids, false) {
+		return
+	}
+	for index, id := range ids {
+		if !check.Contains(v.threats.declared, id) {
+			v.Addf(
+				fmt.Sprintf("top_abuse_path_links[%d]", index),
+				"unknown threat %q", id,
+			)
+		}
+	}
+	limits := v.policy.Limits
+	if limits.MinTopAbusePaths > 0 && len(ids) < limits.MinTopAbusePaths {
+		v.Addf("top_abuse_path_links", "expected at least %d entries", limits.MinTopAbusePaths)
+	}
+	if limits.MaxTopAbusePaths > 0 && len(ids) > limits.MaxTopAbusePaths {
+		v.Addf("top_abuse_path_links", "expected at most %d entries", limits.MaxTopAbusePaths)
+	}
+}
+
+// focusPaths validates the reviewer's reading list. The path is
+// repository-relative and never opened by this tool, exactly like a
+// reference path; the threat links are what make an entry worth having, so
+// they are required rather than optional.
+func (v *validator) focusPaths(items []FocusPath) {
+	paths := make(map[string]struct{}, len(items))
+	for index, item := range items {
+		location := fmt.Sprintf("focus_paths[%d]", index)
+		if err := check.RepoRelativePath(item.Path); err != nil {
+			v.Add(location+".path", err.Error())
+		} else if !v.InsertUnique(paths, item.Path) {
+			v.Addf(location+".path", "duplicate focus path %q", item.Path)
+		}
+		v.RequiredString(location+".why", item.Why)
+		v.referenceList(location+".threat_links", item.ThreatLinks, v.threats, true)
 	}
 }
 
