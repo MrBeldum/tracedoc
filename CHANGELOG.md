@@ -8,6 +8,16 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Requirements-matrix documentation gains `Traceability`, `Ownership`, and
+  `Evidence` sections, so the two schema documents read as siblings rather
+  than one carrying its rules inline in table cells. States plainly that
+  `traceability.adrs` and `traceability.threats` have no format rule and
+  are not resolved — a requirements matrix is validated on its own, and
+  `validate -requirements` runs the other way — and that the two document
+  types' "evidence" and "owner" are unrelated despite the shared words
+  ([#10](https://github.com/sofired/tracedoc/issues/10)).
+
+
 - **Threat-model schema (breaking, pre-adoption).** The threat model
   expands from a list of threats into a reviewable architecture-level
   model, in place, keeping `document_type`, `schema_version` 1,
@@ -151,6 +161,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a document for a consumer template to render.
 
 ### Fixed
+
+- **Configuration paths now observe the same lexical rule as document
+  paths.** `standard_sources[].path` had its own copy of the
+  repository-relative rules, and the copies had diverged: the
+  configuration's copy swept only ASCII space and tab, so a path carrying a
+  non-breaking space or a Unicode line separator passed configuration
+  validation while the identical text in a document was rejected. Both now
+  run `check.RepoRelativePath`; configuration keeps only its tighter
+  256-byte bound, which is the limit worth reporting to someone editing a
+  config file. A configuration path carrying non-ASCII whitespace is now
+  rejected ([#10](https://github.com/sofired/tracedoc/issues/10)).
+
 
 - **Control characters are now rejected in every validated string, as
   documented.** `docs/schema.md` and the 0.1.0 changelog both stated that

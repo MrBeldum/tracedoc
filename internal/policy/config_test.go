@@ -180,7 +180,7 @@ func TestConfigRejections(t *testing.T) {
 		},
 		{
 			name: "local path with scheme",
-			want: "contains whitespace, a control character, a backslash, or a scheme",
+			want: "contains a backslash or a scheme",
 			mutate: func(c *Config) {
 				c.Requirements.StandardSources[2].Path = "https://example.org/plan.md"
 			},
@@ -409,6 +409,53 @@ func TestLimitBoundaryCasesLoad(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if err := reloadMutated(t, test.mutate); err != nil {
 				t.Fatalf("configuration should load: %v", err)
+			}
+		})
+	}
+}
+
+// TestLocalPathSharesTheDocumentRule pins the consolidation. The
+// configuration's own copy of these rules swept only ASCII space and tab,
+// so a path carrying a non-breaking space passed configuration validation
+// while the identical text in a document was rejected. Both now run the
+// same check, and the configuration keeps only its tighter length bound.
+func TestLocalPathSharesTheDocumentRule(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "non-breaking space",
+			path: "docs/a b.md",
+			want: "contains whitespace or a control character",
+		},
+		{
+			name: "unicode line separator",
+			path: "docs/a b.md",
+			want: "contains whitespace or a control character",
+		},
+		{
+			name: "absolute",
+			path: "/etc/passwd",
+			want: "expected a relative path",
+		},
+		{
+			// The configuration's bound, not the document's 16 KiB one:
+			// someone editing a config file is better served by the limit
+			// that actually applies to them.
+			name: "beyond the configuration bound",
+			path: strings.Repeat("a", maxValueBytes+1),
+			want: "exceeds 256-byte limit",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := reloadMutated(t, func(c *Config) {
+				c.Requirements.StandardSources[2].Path = test.path
+			})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected %q, got %v", test.want, err)
 			}
 		})
 	}
