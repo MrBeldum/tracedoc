@@ -1023,6 +1023,16 @@ func TestCodeSpanDelimitersObeyTheBound(t *testing.T) {
 	if closes(maxCodeSpanScanBytes + 1) {
 		t.Error("delimiters past the ceiling must be literal text")
 	}
+
+	// The worst case the const comment names: delimiters at the ceiling
+	// with the search between them running its full length, so the call
+	// reads three times the ceiling. It closes, which is what makes the
+	// figure reachable rather than hypothetical.
+	widest := strings.Repeat("`", maxCodeSpanScanBytes)
+	line := widest + strings.Repeat("x", maxCodeSpanScanBytes-1) + widest
+	if _, _, ok := codeSpanEnd([]string{line}, 0, 0); !ok {
+		t.Error("delimiters at the ceiling a full search apart must close")
+	}
 }
 
 // TestCodeSpanClosesOnALaterLine covers the multi-line path through the

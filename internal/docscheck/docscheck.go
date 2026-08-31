@@ -84,12 +84,18 @@ const (
 // ceiling needs a single code span longer than 8 KiB, where the longest
 // in this repository is under a hundred bytes.
 //
-// The bound is a ceiling on each of the two, not on their sum, so one
-// call reads at most twice it: an opening run at the ceiling, then a
-// search that runs the same distance. Measuring a candidate run also
-// reads one byte past the opening's length, which is what tells an exact
-// closing run from a longer one, and that byte can fall past a budget
-// the next iteration is about to find spent.
+// The bound is a ceiling on each of the three reads one call makes rather
+// than on their sum: the opening run, the search for a closing one, and
+// the measurement of the candidate that ends that search. A call reads
+// three times the ceiling in the worst case — delimiters at the ceiling
+// with the search between them running its full length — which is a
+// constant, not the unbounded quantity the ceiling was added to remove.
+//
+// That last measurement is not charged before it is accepted, because a
+// closing run can only be told from a longer one by reading one byte past
+// the opening's length. Refusing to spend a byte the budget no longer
+// covers would leave the two indistinguishable, and would turn a closing
+// run landing on the last of the budget into literal text.
 //
 // The ceiling exists because the search is per run: a paragraph of runs
 // that never close makes each one rescan everything after it. Measured
