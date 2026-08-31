@@ -16,20 +16,30 @@ import (
 var defaultTemplate string
 
 type view struct {
-	Document        threats.Document
-	Render          render.Options
-	PriorityCounts  []count
-	TreatmentCounts []count
-	Diagrams        []diagram
-	Assets          []assetSection
-	Boundaries      []boundarySection
-	Flows           []flowSection
-	EntryPoints     []entryPoint
-	Decisions       []decision
-	Risks           []risk
-	Controls        []control
-	Evidence        []evidence
-	Sections        []prioritySection
+	Document          threats.Document
+	Render            render.Options
+	PriorityCounts    []count
+	TreatmentCounts   []count
+	Diagrams          []diagram
+	Assets            []assetSection
+	Boundaries        []boundarySection
+	Flows             []flowSection
+	EntryPoints       []entryPoint
+	Decisions         []decision
+	Risks             []risk
+	Controls          []control
+	Evidence          []evidence
+	Sections          []prioritySection
+	TopAbusePathLinks []threats.Threat
+	FocusPaths        []focusPath
+}
+
+// focusPath resolves each threat link to the threat itself, so the
+// rendered reading list can show what a reviewer is being sent to read
+// about rather than a bare list of identifiers.
+type focusPath struct {
+	threats.FocusPath
+	Threats []threats.Threat
 }
 
 type count struct {
@@ -272,6 +282,28 @@ func newView(doc threats.Document, options render.Options) view {
 			Controls: evidenceControls[item.ID],
 		})
 	}
+	// The curated headline list and the reading list both resolve their
+	// threat links against document order, so the rendered companion never
+	// depends on map iteration.
+	byID := make(map[string]threats.Threat, len(doc.Threats))
+	for _, item := range doc.Threats {
+		byID[item.ID] = item
+	}
+	for _, id := range doc.TopAbusePathLinks {
+		if item, ok := byID[id]; ok {
+			result.TopAbusePathLinks = append(result.TopAbusePathLinks, item)
+		}
+	}
+	for _, item := range doc.FocusPaths {
+		linked := make([]threats.Threat, 0, len(item.ThreatLinks))
+		for _, id := range item.ThreatLinks {
+			if threat, ok := byID[id]; ok {
+				linked = append(linked, threat)
+			}
+		}
+		result.FocusPaths = append(result.FocusPaths, focusPath{FocusPath: item, Threats: linked})
+	}
+
 	for _, priority := range threats.PriorityOrder {
 		if len(byPriority[priority]) == 0 {
 			continue

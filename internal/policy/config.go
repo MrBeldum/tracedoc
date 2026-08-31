@@ -84,6 +84,7 @@ type ThreatModelSection struct {
 	EvidenceStatuses []string `json:"evidence_statuses"`
 	ReferenceHosts   []string `json:"reference_hosts"`
 	Coverage         Coverage `json:"coverage"`
+	Limits           Limits   `json:"limits"`
 	Render           Render   `json:"render"`
 }
 
@@ -92,13 +93,24 @@ type ThreatModelSection struct {
 // declared was actually analysed; a consumer building a model incrementally
 // can turn one off while the model is still being written.
 type Coverage struct {
-	RequireAssetCoverage      bool `json:"require_asset_coverage"`
-	RequireBoundaryCoverage   bool `json:"require_boundary_coverage"`
-	RequireFlowCoverage       bool `json:"require_flow_coverage"`
-	RequireEntryPointCoverage bool `json:"require_entry_point_coverage"`
-	RequireControlCoverage    bool `json:"require_control_coverage"`
-	RequireRiskCoverage       bool `json:"require_risk_coverage"`
-	RequireEvidencePerThreat  bool `json:"require_evidence_per_threat"`
+	RequireAssetCoverage               bool `json:"require_asset_coverage"`
+	RequireBoundaryCoverage            bool `json:"require_boundary_coverage"`
+	RequireFlowCoverage                bool `json:"require_flow_coverage"`
+	RequireEntryPointCoverage          bool `json:"require_entry_point_coverage"`
+	RequireControlCoverage             bool `json:"require_control_coverage"`
+	RequireRiskCoverage                bool `json:"require_risk_coverage"`
+	RequireEvidencePerThreat           bool `json:"require_evidence_per_threat"`
+	RequireCriticalityForEveryPriority bool `json:"require_criticality_for_every_priority"`
+}
+
+// Limits is the consumer's quantitative policy for the collections whose
+// usefulness depends on how much of them there is. Omitting a member, or
+// setting it to zero, disables that limit — the schema says what these
+// collections are, and the project says how much of them it expects.
+type Limits struct {
+	MinCriticalityExamples int `json:"min_criticality_examples"`
+	MinTopAbusePaths       int `json:"min_top_abuse_paths"`
+	MaxTopAbusePaths       int `json:"max_top_abuse_paths"`
 }
 
 // StandardSource declares where citations for one standard may point: either
@@ -197,6 +209,12 @@ func (c *Config) ThreatsPolicy() (threats.Policy, error) {
 			Controls:    section.Coverage.RequireControlCoverage,
 			Risks:       section.Coverage.RequireRiskCoverage,
 			Evidence:    section.Coverage.RequireEvidencePerThreat,
+			Criticality: section.Coverage.RequireCriticalityForEveryPriority,
+		},
+		Limits: threats.Limits{
+			MinCriticalityExamples: section.Limits.MinCriticalityExamples,
+			MinTopAbusePaths:       section.Limits.MinTopAbusePaths,
+			MaxTopAbusePaths:       section.Limits.MaxTopAbusePaths,
 		},
 	}
 	return result, nil
@@ -366,7 +384,33 @@ func (c *Config) validateThreatModelSection(
 		seen[host] = struct{}{}
 	}
 
+	validateLimits(add, section.Limits)
 	validateRender(add, "threat_model.render", section.Render)
+}
+
+// validateLimits rejects negative bounds and a max below its min. A limit
+// that can never be satisfied is a configuration error worth catching at
+// load time rather than as a puzzling document rejection later.
+func validateLimits(add func(location, format string, args ...any), limits Limits) {
+	for _, bound := range []struct {
+		name  string
+		value int
+	}{
+		{"min_criticality_examples", limits.MinCriticalityExamples},
+		{"min_top_abuse_paths", limits.MinTopAbusePaths},
+		{"max_top_abuse_paths", limits.MaxTopAbusePaths},
+	} {
+		if bound.value < 0 {
+			add("threat_model.limits."+bound.name, "expected a non-negative integer")
+		}
+	}
+	if limits.MaxTopAbusePaths > 0 && limits.MinTopAbusePaths > limits.MaxTopAbusePaths {
+		add(
+			"threat_model.limits.max_top_abuse_paths",
+			"must not be smaller than min_top_abuse_paths (%d)",
+			limits.MinTopAbusePaths,
+		)
+	}
 }
 
 func (c *Config) compilePattern(errs *[]string, location, value string) *regexp.Regexp {

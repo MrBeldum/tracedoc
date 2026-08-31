@@ -38,6 +38,9 @@ will demonstrate it is handled and who carries whatever risk remains.
 | `planned_evidence` | array  | non-empty; see below                           |
 | `observability`    | array  | required, may be empty; see below              |
 | `threats`          | array  | non-empty; see below                           |
+| `criticality`      | array  | required, may be empty; see below              |
+| `top_abuse_path_links` | array | required, may be empty; declared threat IDs   |
+| `focus_paths`      | array  | required, may be empty; see below              |
 | `supersessions`    | array  | required, may be empty; shared supersession rules with threat IDs |
 
 Every array member is **required to be present**, even when empty. `compare`
@@ -350,6 +353,55 @@ present:
 - `accept`, `avoid`, and `transfer` each require `treatment_rationale`:
   all three record a decision not to build a control.
 
+## `criticality[]`
+
+| Member       | Type   | Rules                                              |
+| ------------ | ------ | -------------------------------------------------- |
+| `level`      | string | a `priority` value (schema-owned); unique          |
+| `definition` | string | non-empty; what this level means for this project  |
+| `examples`   | array  | non-empty, unique; worked examples at this level   |
+
+`priority` is a schema-owned vocabulary, but what separates one level from
+the next is a project's own judgement about blast radius. Without that
+judgement written down, a reader cannot tell a miscalibrated ranking from an
+honest disagreement about the scale — which makes the model's most
+consequential field the one nobody can check.
+
+The level is the record's key, so there is no separate identifier — nothing
+links to a calibration entry. Duplicated levels are rejected.
+
+Two bounded configuration switches govern how much calibration a project
+expects: `require_criticality_for_every_priority` demands an entry for each
+of the four levels, and `min_criticality_examples` sets a floor on
+`examples`. Both are [configuration](config.md#threat_model), because the
+right answer differs between a small service and a platform.
+
+## `top_abuse_path_links`
+
+A required array, possibly empty, of unique declared threat IDs: the abuse
+paths a reviewer should follow first. Bounded by the configured
+`min_top_abuse_paths` and `max_top_abuse_paths`.
+
+This is deliberately **not** derived from `priority`. "The paths to read
+first" is an editorial judgement about narrative order, and a list that
+merely repeats every `critical` threat has made no such judgement. A model
+with fifteen threats and three genuinely instructive attack narratives
+should say so.
+
+## `focus_paths[]`
+
+| Member         | Type   | Rules                                        |
+| -------------- | ------ | -------------------------------------------- |
+| `path`         | string | repository-relative, unique; same rules as a [reference path](#references) |
+| `why`          | string | non-empty; why this location deserves scrutiny |
+| `threat_links` | array  | non-empty, unique; declared threat IDs        |
+
+The model's link from a threat to where that threat actually lives. No
+other collection carries it: `components` describe what the system is made
+of and `planned_evidence` describes what will test it, but neither tells a
+reviewer what to read. The path is the record's key, and as with every path
+this schema carries, the tool never opens it.
+
 ## Ownership
 
 `threats[]`, `controls[]`, and `planned_evidence[]` each carry an `owner`
@@ -392,6 +444,7 @@ incrementally can turn one off rather than deleting the entity:
 | `require_control_coverage`      | a control no threat links to                           |
 | `require_risk_coverage`         | a risk no threat links to                              |
 | `require_evidence_per_threat`   | a threat no planned evidence names                     |
+| `require_criticality_for_every_priority` | a `priority` level with no [calibration entry](#criticality) |
 
 Coverage is credited **only** from `threats[]` and, for the last rule, from
 `planned_evidence[].threat_links`. A boundary named by a data flow, or a
@@ -405,6 +458,36 @@ An **entry point** counts as analysed only when one threat both crosses its
 false positive worth rejecting: a threat that crosses the same boundary by a
 different route has not examined this surface, and accepting it would
 certify an entry point nobody reviewed.
+
+## Why there is no `quality_checks`
+
+A threat model may be tempted to carry its own completeness self-assessment
+— a list of claims like "all entry points are covered", each marked
+complete. This schema deliberately has no such collection, because for the
+claims worth making the tool already proves them, and a hand-maintained
+claim can go stale and contradict the validator that ran beside it:
+
+| A claim of this kind | What already enforces it |
+| -------------------- | ------------------------ |
+| All entry points are covered | `require_entry_point_coverage` |
+| Every trust boundary appears in a threat | `require_boundary_coverage` |
+| Every asset, flow, control, and risk is analysed | the remaining [coverage switches](#coverage) |
+| Every threat has planned evidence | `require_evidence_per_threat` |
+| Requirement traceability resolves | `validate -requirements` |
+| Assumptions and open questions are explicit | `assumptions` and `open_questions` are required members |
+
+The claims left over — "the review reflected a conversation with the
+architect", "both deployment shapes were considered" — are process notes
+about how a review was conducted rather than statements about the system.
+They belong in the pull request that changed the model, where they can be
+read against the diff.
+
+Note that this is a schema-or-nothing choice, not a schema-versus-template
+one. Unknown members are rejected
+([shared lexical contract](schema.md#shared-lexical-contract)), so a
+collection absent from the schema cannot appear in a document at all, and a
+consumer template has nothing to render. Anything a project needs to record
+has to be a schema member.
 
 ## Which vocabularies are schema-owned
 

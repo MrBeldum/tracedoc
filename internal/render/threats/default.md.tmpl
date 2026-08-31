@@ -128,7 +128,23 @@
 | --- | ---: |
 {{range .TreatmentCounts}}| `{{.Label}}` | {{.Value}} |
 {{end}}
-## Assets
+## Priority calibration
+
+{{if .Document.Criticality}}What each priority level means in this project, with worked examples.
+
+{{range .Document.Criticality}}**`{{.Level}}`** — {{prose .Definition}}
+
+{{range .Examples}}- {{prose .}}
+{{end}}
+{{end}}{{else}}No priority calibration recorded.
+{{end}}## Start here
+
+{{if .TopAbusePathLinks}}The abuse paths a reviewer should follow first.
+
+{{range $index, $threat := .TopAbusePathLinks}}{{add1 $index}}. [`{{$threat.ID}}`](#{{anchorHref $threat.ID}}) — {{prose $threat.Title}} (`{{$threat.Priority}}`)
+{{end}}
+{{else}}No headline abuse paths recorded.
+{{end}}## Assets
 
 | ID | Asset | Objective | Threats |
 | --- | --- | --- | ---: |
@@ -277,7 +293,18 @@
 **Controls:** {{inlineValues .ControlLinks}}
 
 {{end}}{{else}}No observability expectations recorded.
-{{end}}## Supersessions
+{{end}}## Where to look
+
+{{if .FocusPaths}}{{/* A focus path is consumer free text in a table cell,
+so it goes through inlineCode: that escapes its pipes and widens the fence
+past any backtick run. The escaping is parity-safe only because validation
+rejects a backslash in the path — see the focus-path case in
+internal/threats/validate_test.go. */}}| Path | Why | Threats |
+| --- | --- | --- |
+{{range .FocusPaths}}| {{inlineCode .Path}} | {{table .Why}} | {{range $index, $threat := .Threats}}{{if $index}}, {{end}}[`{{$threat.ID}}`](#{{anchorHref $threat.ID}}){{end}} |
+{{end}}{{else}}No focus paths recorded.
+{{end}}
+## Supersessions
 
 {{if .Document.Supersessions}}| Retired ID | Replacement IDs | Rationale |
 | --- | --- | --- |

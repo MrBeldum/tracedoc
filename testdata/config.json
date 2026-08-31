@@ -78,7 +78,13 @@
       "require_entry_point_coverage": true,
       "require_control_coverage": true,
       "require_risk_coverage": true,
-      "require_evidence_per_threat": true
+      "require_evidence_per_threat": true,
+      "require_criticality_for_every_priority": true
+    },
+    "limits": {
+      "min_criticality_examples": 2,
+      "min_top_abuse_paths": 2,
+      "max_top_abuse_paths": 10
     },
     "render": {
       "source_name": "threats.json",

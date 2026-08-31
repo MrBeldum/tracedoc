@@ -478,3 +478,88 @@ func TestRiskIDAnchorsAreEscaped(t *testing.T) {
 		t.Errorf("risk anchor is not escaped as expected; rendered:\n%s", rendered)
 	}
 }
+
+// TestReviewGuidanceRendering covers the three collections that exist to
+// help a reader navigate the model rather than to describe the system: the
+// priority calibration, the curated headline list, and the reading list.
+// Each resolves identifiers the renderer must not reorder.
+func TestReviewGuidanceRendering(t *testing.T) {
+	doc := fixtureDocument(t)
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render review guidance: %v", err)
+	}
+
+	for _, want := range []string{
+		"## Priority calibration",
+		"## Start here",
+		"## Where to look",
+		// Calibration is emitted in the schema's priority order, not the
+		// document's, so a reader always sees the scale top-down.
+		"**`critical`**",
+		"**`low`**",
+		// The headline list keeps document order and resolves to titles.
+		"1. [`THRT-001`](#thrt-001)",
+		"2. [`THRT-002`](#thrt-002)",
+		// A focus path renders its own threat links.
+		"`diagrams/data-flow.md`",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("rendered Markdown does not contain %q", want)
+		}
+	}
+}
+
+// TestReviewGuidanceEscaping keeps the new sections inside the same
+// injection guarantees as the rest of the document. A focus path is
+// consumer-authored free text emitted into a table cell and an inline code
+// span, and a calibration definition is prose.
+func TestReviewGuidanceEscaping(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Criticality[0].Definition = "Compromise <script> of *everything* | totally"
+	doc.Criticality[0].Examples = []string{"Example with `backticks` and | a pipe"}
+	doc.FocusPaths[0].Why = "Read <this> first | before anything else"
+	doc.FocusPaths[0].Path = "docs/a|b.md"
+
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render hostile review guidance: %v", err)
+	}
+	for _, unsafe := range []string{"<script>", "*everything*"} {
+		if strings.Contains(rendered, unsafe) {
+			t.Errorf("rendered Markdown contains unescaped content %q", unsafe)
+		}
+	}
+	// A pipe inside a focus path must not add a column to its row.
+	for _, line := range strings.Split(rendered, "\n") {
+		if strings.Contains(line, "docs/a") && strings.HasPrefix(line, "|") {
+			if pipes := strings.Count(line, "|") - strings.Count(line, `\|`); pipes != 4 {
+				t.Errorf("focus-path row has %d unescaped pipes, want 4:\n%s", pipes, line)
+			}
+		}
+	}
+}
+
+// TestEmptyReviewGuidanceRenders covers the empty case for all three: they
+// are optional collections, and an empty one must say so rather than leave
+// a bare heading a reader cannot interpret.
+func TestEmptyReviewGuidanceRenders(t *testing.T) {
+	doc := fixtureDocument(t)
+	doc.Criticality = nil
+	doc.TopAbusePathLinks = nil
+	doc.FocusPaths = nil
+
+	rendered, err := Render(doc, fixtureOptions(), "")
+	if err != nil {
+		t.Fatalf("render empty review guidance: %v", err)
+	}
+	for _, want := range []string{
+		"No priority calibration recorded.",
+		"No headline abuse paths recorded.",
+		"No focus paths recorded.",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("rendered Markdown does not contain %q", want)
+		}
+	}
+}

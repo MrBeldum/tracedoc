@@ -181,6 +181,15 @@ func TestCompareRejections(t *testing.T) {
 			},
 		},
 		{
+			name:  "change to review guidance without version increase",
+			want:  `document changed but document_version "0.1.0" does not increase baseline "0.1.0"`,
+			rules: allRules(),
+			mutate: func(doc *threats.Document) {
+				doc.FocusPaths[0].Why = "Revised reason for reading this first."
+				doc.LastReviewed = "2026-08-01"
+			},
+		},
+		{
 			name:  "change to document context without version increase",
 			want:  `document changed but document_version "0.1.0" does not increase baseline "0.1.0"`,
 			rules: allRules(),

@@ -83,6 +83,37 @@ Architecture-level threat model for the example token service, covering credenti
 | `mitigate` | 2 |
 | `accept` | 1 |
 
+## Priority calibration
+
+What each priority level means in this project, with worked examples.
+
+**`critical`** — A plausible path forges tokens, compromises signing material, or grants broad authority across every registered client at once.
+
+- Signing-key disclosure allowing arbitrary token minting.
+- Authentication bypass on the token endpoint.
+
+**`high`** — A plausible path compromises one client&#39;s credentials, or lets an insider reach protected material without detection.
+
+- Credential replay yielding tokens for a single registered client.
+- Unaudited operator access to signing key material.
+
+**`medium`** — A path requires a network position or an unusual client configuration, and exposure is bounded to the clients that accept it.
+
+- Discovery metadata tampering against clients that permit plaintext.
+- Rate-limit evasion that slows rather than defeats authentication.
+
+**`low`** — A path yields information that assists a later attack without itself crossing a trust boundary.
+
+- Timing variation distinguishing registered from unregistered clients.
+- Verbose error text naming an internal component.
+
+## Start here
+
+The abuse paths a reviewer should follow first.
+
+1. [`THRT-001`](#thrt-001) — Credential stuffing against the token endpoint (`critical`)
+2. [`THRT-002`](#thrt-002) — Signing-key exfiltration by a platform insider (`high`)
+
 ## Assets
 
 | ID | Asset | Objective | Threats |
@@ -545,6 +576,13 @@ Refuses to serve discovery metadata over an insecure channel rather than answeri
 **Alert condition:** Authentication failures for one client exceed the configured threshold within five minutes.
 
 **Controls:** `CTRL-001`
+
+## Where to look
+
+| Path | Why | Threats |
+| --- | --- | --- |
+| `diagrams/data-flow.md` | The reviewed topology: every trust boundary and data flow in this model is drawn here. | [`THRT-001`](#thrt-001), [`THRT-002`](#thrt-002), [`THRT-003`](#thrt-003) |
+| `../plan.md` | Carries the risk register entries that accepted and residual risk are charged against. | [`THRT-002`](#thrt-002), [`THRT-003`](#thrt-003) |
 
 ## Supersessions
 

@@ -111,8 +111,13 @@
       "description": "Requests crossing from the public network into the token service.",
       "source": "COMP-001",
       "destination": "COMP-002",
-      "data": ["Client credentials", "Token requests"],
-      "channels": ["HTTPS"],
+      "data": [
+        "Client credentials",
+        "Token requests"
+      ],
+      "channels": [
+        "HTTPS"
+      ],
       "security_guarantees": [
         "Client credentials are never accepted over an insecure channel.",
         "Authentication failures are rate limited per client."
@@ -129,8 +134,12 @@
       "description": "Signing-key retrieval crossing into the restricted zone.",
       "source": "COMP-002",
       "destination": "COMP-003",
-      "data": ["Signing key material"],
-      "channels": ["Mutually authenticated TLS"],
+      "data": [
+        "Signing key material"
+      ],
+      "channels": [
+        "Mutually authenticated TLS"
+      ],
       "security_guarantees": [
         "Only the token service identity may retrieve signing keys.",
         "Key retrieval is audited."
@@ -151,8 +160,14 @@
         "Proxy forwards the authenticated request to the token service.",
         "Token service validates the credentials and issues a signed token."
       ],
-      "boundaries": ["TB-001", "TB-002"],
-      "data": ["Client credentials", "Issued tokens"]
+      "boundaries": [
+        "TB-001",
+        "TB-002"
+      ],
+      "data": [
+        "Client credentials",
+        "Issued tokens"
+      ]
     },
     {
       "id": "DF-002",
@@ -161,8 +176,12 @@
         "Token service requests the active signing key.",
         "Key store authorises the caller and returns the key material."
       ],
-      "boundaries": ["TB-002"],
-      "data": ["Signing key material"]
+      "boundaries": [
+        "TB-002"
+      ],
+      "data": [
+        "Signing key material"
+      ]
     },
     {
       "id": "DF-003",
@@ -172,8 +191,12 @@
         "Proxy returns metadata naming the token endpoint and its keys.",
         "Client configures itself from the returned metadata."
       ],
-      "boundaries": ["TB-001"],
-      "data": ["Discovery metadata"]
+      "boundaries": [
+        "TB-001"
+      ],
+      "data": [
+        "Discovery metadata"
+      ]
     }
   ],
   "entry_points": [
@@ -182,7 +205,9 @@
       "surface": "POST /token",
       "reached": "Directly from the public network.",
       "boundary": "TB-001",
-      "flows": ["DF-001"],
+      "flows": [
+        "DF-001"
+      ],
       "notes": "Unauthenticated by definition: it is where credentials are first presented.",
       "evidence": "diagrams/data-flow.md"
     },
@@ -191,7 +216,9 @@
       "surface": "Key store retrieval API",
       "reached": "From the token service inside the application zone.",
       "boundary": "TB-002",
-      "flows": ["DF-002"],
+      "flows": [
+        "DF-002"
+      ],
       "notes": "Reachable only after a foothold in the application zone.",
       "evidence": "diagrams/data-flow.md"
     },
@@ -200,7 +227,9 @@
       "surface": "GET /.well-known/openid-configuration",
       "reached": "Directly from the public network, before any credential is presented.",
       "boundary": "TB-001",
-      "flows": ["DF-003"],
+      "flows": [
+        "DF-003"
+      ],
       "notes": "Read by clients during configuration, so tampering here steers every later request.",
       "evidence": "diagrams/data-flow.md"
     }
@@ -243,10 +272,14 @@
         "issue": "#10",
         "workstream": "Protocol"
       },
-      "requirement_links": ["EXCORE-001"],
+      "requirement_links": [
+        "EXCORE-001"
+      ],
       "decision_links": [],
       "risk_links": [],
-      "evidence_links": ["EVD-001"],
+      "evidence_links": [
+        "EVD-001"
+      ],
       "implementation_note": "Enforced at the token service rather than the edge so it survives a proxy bypass."
     },
     {
@@ -261,9 +294,15 @@
         "workstream": "Platform"
       },
       "requirement_links": [],
-      "decision_links": ["ADR-102"],
-      "risk_links": ["R1"],
-      "evidence_links": ["EVD-002"],
+      "decision_links": [
+        "ADR-102"
+      ],
+      "risk_links": [
+        "R1"
+      ],
+      "evidence_links": [
+        "EVD-002"
+      ],
       "implementation_note": "Depends on the key custody decision recorded in ADR-102."
     },
     {
@@ -277,10 +316,18 @@
         "issue": "#7",
         "workstream": "Platform"
       },
-      "requirement_links": ["RFCX-001"],
-      "decision_links": ["ADR-101"],
-      "risk_links": ["R2"],
-      "evidence_links": ["EVD-003"],
+      "requirement_links": [
+        "RFCX-001"
+      ],
+      "decision_links": [
+        "ADR-101"
+      ],
+      "risk_links": [
+        "R2"
+      ],
+      "evidence_links": [
+        "EVD-003"
+      ],
       "implementation_note": "Enforced at the public edge, where ADR-101 terminates transport security. Server-side only: an on-path attacker can answer a plaintext request before it reaches the edge, so this bounds exposure rather than removing it, and R2 stays open until clients refuse plaintext discovery."
     }
   ],
@@ -297,7 +344,9 @@
         "issue": "#10",
         "workstream": "Protocol"
       },
-      "threat_links": ["THRT-001"]
+      "threat_links": [
+        "THRT-001"
+      ]
     },
     {
       "id": "EVD-002",
@@ -311,7 +360,9 @@
         "issue": null,
         "workstream": "Platform"
       },
-      "threat_links": ["THRT-002"]
+      "threat_links": [
+        "THRT-002"
+      ]
     },
     {
       "id": "EVD-003",
@@ -325,7 +376,9 @@
         "issue": "#7",
         "workstream": "Platform"
       },
-      "threat_links": ["THRT-003"]
+      "threat_links": [
+        "THRT-003"
+      ]
     }
   ],
   "observability": [
@@ -341,7 +394,9 @@
         "Issued token values must never be logged."
       ],
       "alert_condition": "Authentication failures for one client exceed the configured threshold within five minutes.",
-      "control_links": ["CTRL-001"]
+      "control_links": [
+        "CTRL-001"
+      ]
     }
   ],
   "threats": [
@@ -374,13 +429,25 @@
       "gaps": "No rate limiting and no credential-breach screening.",
       "recommended_mitigations": "Per-client rate limiting plus screening against known-breached credentials.",
       "detection_ideas": "Alert on authentication failure rate per client identifier.",
-      "actor_links": ["ACTOR-001"],
-      "asset_links": ["AST-001"],
-      "boundary_links": ["TB-001"],
-      "flow_links": ["DF-001"],
-      "control_links": ["CTRL-001"],
+      "actor_links": [
+        "ACTOR-001"
+      ],
+      "asset_links": [
+        "AST-001"
+      ],
+      "boundary_links": [
+        "TB-001"
+      ],
+      "flow_links": [
+        "DF-001"
+      ],
+      "control_links": [
+        "CTRL-001"
+      ],
       "risk_links": [],
-      "evidence_links": ["EVD-001"]
+      "evidence_links": [
+        "EVD-001"
+      ]
     },
     {
       "id": "THRT-002",
@@ -412,13 +479,27 @@
       "gaps": "Key material is retrievable in plaintext by any process on the host.",
       "recommended_mitigations": "Move signing operations behind dedicated custody hardware.",
       "detection_ideas": "Audit and alert on signing-key retrievals outside expected rotation windows.",
-      "actor_links": ["ACTOR-002"],
-      "asset_links": ["AST-002"],
-      "boundary_links": ["TB-002"],
-      "flow_links": ["DF-002"],
-      "control_links": ["CTRL-002"],
-      "risk_links": ["R1"],
-      "evidence_links": ["EVD-002"]
+      "actor_links": [
+        "ACTOR-002"
+      ],
+      "asset_links": [
+        "AST-002"
+      ],
+      "boundary_links": [
+        "TB-002"
+      ],
+      "flow_links": [
+        "DF-002"
+      ],
+      "control_links": [
+        "CTRL-002"
+      ],
+      "risk_links": [
+        "R1"
+      ],
+      "evidence_links": [
+        "EVD-002"
+      ]
     },
     {
       "id": "THRT-003",
@@ -449,19 +530,93 @@
       "gaps": "RFCX-001 requires metadata over TLS, but nothing enforces it while CTRL-003 remains planned.",
       "recommended_mitigations": "Refuse to serve discovery metadata over an insecure channel.",
       "detection_ideas": "Alert on any plaintext request reaching the discovery path.",
-      "actor_links": ["ACTOR-001"],
-      "asset_links": ["AST-001", "AST-003"],
-      "boundary_links": ["TB-001"],
-      "flow_links": ["DF-003"],
-      "control_links": ["CTRL-003"],
-      "risk_links": ["R2"],
-      "evidence_links": ["EVD-003"]
+      "actor_links": [
+        "ACTOR-001"
+      ],
+      "asset_links": [
+        "AST-001",
+        "AST-003"
+      ],
+      "boundary_links": [
+        "TB-001"
+      ],
+      "flow_links": [
+        "DF-003"
+      ],
+      "control_links": [
+        "CTRL-003"
+      ],
+      "risk_links": [
+        "R2"
+      ],
+      "evidence_links": [
+        "EVD-003"
+      ]
+    }
+  ],
+  "criticality": [
+    {
+      "level": "critical",
+      "definition": "A plausible path forges tokens, compromises signing material, or grants broad authority across every registered client at once.",
+      "examples": [
+        "Signing-key disclosure allowing arbitrary token minting.",
+        "Authentication bypass on the token endpoint."
+      ]
+    },
+    {
+      "level": "high",
+      "definition": "A plausible path compromises one client's credentials, or lets an insider reach protected material without detection.",
+      "examples": [
+        "Credential replay yielding tokens for a single registered client.",
+        "Unaudited operator access to signing key material."
+      ]
+    },
+    {
+      "level": "medium",
+      "definition": "A path requires a network position or an unusual client configuration, and exposure is bounded to the clients that accept it.",
+      "examples": [
+        "Discovery metadata tampering against clients that permit plaintext.",
+        "Rate-limit evasion that slows rather than defeats authentication."
+      ]
+    },
+    {
+      "level": "low",
+      "definition": "A path yields information that assists a later attack without itself crossing a trust boundary.",
+      "examples": [
+        "Timing variation distinguishing registered from unregistered clients.",
+        "Verbose error text naming an internal component."
+      ]
+    }
+  ],
+  "top_abuse_path_links": [
+    "THRT-001",
+    "THRT-002"
+  ],
+  "focus_paths": [
+    {
+      "path": "diagrams/data-flow.md",
+      "why": "The reviewed topology: every trust boundary and data flow in this model is drawn here.",
+      "threat_links": [
+        "THRT-001",
+        "THRT-002",
+        "THRT-003"
+      ]
+    },
+    {
+      "path": "../plan.md",
+      "why": "Carries the risk register entries that accepted and residual risk are charged against.",
+      "threat_links": [
+        "THRT-002",
+        "THRT-003"
+      ]
     }
   ],
   "supersessions": [
     {
       "retired_id": "THRT-900",
-      "replacement_ids": ["THRT-001"],
+      "replacement_ids": [
+        "THRT-001"
+      ],
       "rationale": "Split credential replay out of the combined endpoint-abuse threat."
     }
   ]

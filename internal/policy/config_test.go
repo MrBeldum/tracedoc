@@ -61,6 +61,13 @@ func TestFixtureConfigLoads(t *testing.T) {
 		len(threatsPolicy.ReferenceHosts) != 2 {
 		t.Fatalf("unexpected threat-model vocabularies: %#v", threatsPolicy)
 	}
+	if threatsPolicy.Limits != (threats.Limits{
+		MinCriticalityExamples: 2,
+		MinTopAbusePaths:       2,
+		MaxTopAbusePaths:       10,
+	}) {
+		t.Fatalf("unexpected limits: %#v", threatsPolicy.Limits)
+	}
 	if threatsPolicy.Coverage != (threats.Coverage{
 		Assets:      true,
 		Boundaries:  true,
@@ -69,6 +76,7 @@ func TestFixtureConfigLoads(t *testing.T) {
 		Controls:    true,
 		Risks:       true,
 		Evidence:    true,
+		Criticality: true,
 	}) {
 		t.Fatalf("unexpected coverage switches: %#v", threatsPolicy.Coverage)
 	}
@@ -301,6 +309,29 @@ func TestConfigRejections(t *testing.T) {
 			mutate: func(c *Config) { c.ThreatModel.ReferenceHosts[0] = "localhost" },
 		},
 		{
+			name:   "negative limit",
+			want:   "threat_model.limits.min_criticality_examples: expected a non-negative integer",
+			mutate: func(c *Config) { c.ThreatModel.Limits.MinCriticalityExamples = -1 },
+		},
+		{
+			name:   "negative headline-list minimum",
+			want:   "threat_model.limits.min_top_abuse_paths: expected a non-negative integer",
+			mutate: func(c *Config) { c.ThreatModel.Limits.MinTopAbusePaths = -1 },
+		},
+		{
+			name:   "negative headline-list maximum",
+			want:   "threat_model.limits.max_top_abuse_paths: expected a non-negative integer",
+			mutate: func(c *Config) { c.ThreatModel.Limits.MaxTopAbusePaths = -1 },
+		},
+		{
+			name: "top abuse path maximum below its minimum",
+			want: "threat_model.limits.max_top_abuse_paths: must not be smaller than min_top_abuse_paths (9)",
+			mutate: func(c *Config) {
+				c.ThreatModel.Limits.MinTopAbusePaths = 9
+				c.ThreatModel.Limits.MaxTopAbusePaths = 3
+			},
+		},
+		{
 			name: "duplicate reference host",
 			want: `threat_model.reference_hosts[1]: duplicate host`,
 			mutate: func(c *Config) {
@@ -341,5 +372,44 @@ func TestEmptyReferenceHostsIsLegal(t *testing.T) {
 	}
 	if len(pol.ReferenceHosts) != 0 {
 		t.Fatalf("expected an empty allowlist, got %#v", pol.ReferenceHosts)
+	}
+}
+
+// TestLimitBoundaryCasesLoad covers the two shapes a bounds check is
+// easiest to get wrong, both of which must be accepted: a minimum with no
+// maximum, and a minimum equal to its maximum. The rejection cases sit far
+// from the boundary, so without these an off-by-one in either direction —
+// treating an unset maximum as a cap of zero, or rejecting min == max —
+// would ship undetected.
+func TestLimitBoundaryCasesLoad(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{
+			name: "minimum set with no maximum",
+			mutate: func(c *Config) {
+				c.ThreatModel.Limits.MinTopAbusePaths = 5
+				c.ThreatModel.Limits.MaxTopAbusePaths = 0
+			},
+		},
+		{
+			name: "minimum equal to maximum",
+			mutate: func(c *Config) {
+				c.ThreatModel.Limits.MinTopAbusePaths = 3
+				c.ThreatModel.Limits.MaxTopAbusePaths = 3
+			},
+		},
+		{
+			name:   "every limit unset",
+			mutate: func(c *Config) { c.ThreatModel.Limits = Limits{} },
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := reloadMutated(t, test.mutate); err != nil {
+				t.Fatalf("configuration should load: %v", err)
+			}
+		})
 	}
 }
