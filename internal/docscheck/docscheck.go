@@ -834,8 +834,17 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 				budget--
 				continue
 			}
-			run := leadingRun(line[scan:], '`')
-			if run == opening {
+			// Measuring only far enough to tell an exact match from a
+			// longer run is what keeps one oversized run inside the
+			// budget: reading the run whole would spend its full length
+			// before the check above ever saw the cost, and the runs
+			// that precede it each repeat that read.
+			limit := opening + 1
+			if limit > budget {
+				limit = budget
+			}
+			run := leadingRunAtMost(line[scan:], '`', limit)
+			if run == opening && run < limit {
 				return cursor, scan + opening, true
 			}
 			scan += run
@@ -847,8 +856,16 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 
 // leadingRun counts the leading repetitions of char in value.
 func leadingRun(value string, char byte) int {
+	return leadingRunAtMost(value, char, len(value))
+}
+
+// leadingRunAtMost counts the leading repetitions of char in value,
+// stopping once limit of them have been seen. A caller that only needs to
+// tell one exact length from every greater one then pays for the length
+// it asked about rather than for the run it was handed.
+func leadingRunAtMost(value string, char byte, limit int) int {
 	run := 0
-	for run < len(value) && value[run] == char {
+	for run < limit && run < len(value) && value[run] == char {
 		run++
 	}
 	return run
