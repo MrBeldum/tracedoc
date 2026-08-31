@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/sofired/tracedoc/internal/check"
 	"github.com/sofired/tracedoc/internal/continuity"
 	"github.com/sofired/tracedoc/internal/document"
 	"github.com/sofired/tracedoc/internal/matrix"
@@ -508,26 +509,31 @@ func validateIssueURLBase(value string) error {
 	return nil
 }
 
-// validateLocalPath deliberately does not reject ".." segments. This tool
-// never opens the path itself — it only echoes it into a citation's
-// rendered Markdown link and, in validateSourceURI, compares it verbatim
-// against the citation URI's parsed path — so there is no local traversal
-// to prevent here. Consumers legitimately point a standard_sources path at
-// a sibling document, for example "../plan.md". Do not start opening this
-// path without re-deriving these bounds from that new capability.
+// validateLocalPath applies the shared repository-relative path rules on
+// top of the tighter bound every configuration value observes. It had its
+// own copy of those rules until they diverged: the copy swept only ASCII
+// space and tab, so a path carrying a non-breaking space or a Unicode line
+// separator passed configuration validation while the same text in a
+// document was rejected. One definition, in check, is what keeps the two
+// from drifting again.
+//
+// The 256-byte bound stays local and is applied first: configuration
+// values are bounded far tighter than document strings, and reporting the
+// configuration's own limit is more use to someone editing a config file
+// than the 16 KiB document limit would be.
+//
+// Neither rule rejects ".." segments. This tool never opens the path — it
+// echoes it into a citation's rendered Markdown link and, in
+// validateSourceURI, compares it verbatim against the citation URI's
+// parsed path — so there is no local traversal to prevent. Consumers
+// legitimately point a standard_sources path at a sibling document, for
+// example "../plan.md". Do not start opening this path without
+// re-deriving these bounds from that new capability.
 func validateLocalPath(value string) error {
 	if len(value) > maxValueBytes {
 		return fmt.Errorf("exceeds %d-byte limit", maxValueBytes)
 	}
-	if hasControlRune(value) ||
-		strings.ContainsAny(value, " \t\\") ||
-		strings.Contains(value, ":") {
-		return fmt.Errorf("contains whitespace, a control character, a backslash, or a scheme")
-	}
-	if strings.HasPrefix(value, "/") {
-		return fmt.Errorf("expected a relative path")
-	}
-	return nil
+	return check.RepoRelativePath(value)
 }
 
 func hasControlRune(value string) bool {

@@ -56,6 +56,21 @@ rendering, where reordering would mislead a reader of the generated
 document. Other format-category (Cf) code points, such as zero-width
 joiners, are permitted in both layers.
 
+## Words the two document types use differently
+
+Two terms appear in both schemas meaning different things. Neither pair is
+linked, and no value of one is ever resolved against the other:
+
+| Term | Requirements matrix | Threat model |
+| ---- | ------------------- | ------------ |
+| evidence | `planned_verification.evidence`, a list of free-form identifiers naming what will demonstrate a requirement is met | `planned_evidence[]`, declared records with identifiers, levels, owners, and resolved threat links |
+| owner | routing only — milestone, issue, workstream | routing plus an accountable `principal` who carries the residual risk |
+
+The configured vocabularies follow the same split: `verification_levels`
+belongs to the requirements section and `evidence_levels` to the
+threat-model section. A project may give them the same values; nothing
+derives one from the other.
+
 ## Schema-owned versus configured vocabularies
 
 Some enumerated vocabularies are fixed by a schema; others are declared in

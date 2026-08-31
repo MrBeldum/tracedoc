@@ -43,7 +43,7 @@ Example:
     "owner_pattern": "^@[a-z][a-z0-9-]*$",
     "document_statuses": ["draft", "accepted"],
     "control_statuses": ["planned", "in-progress", "implemented"],
-    "evidence_levels": ["unit", "integration", "adversarial"],
+    "evidence_levels": ["adversarial", "integration", "operational"],
     "evidence_statuses": ["planned", "deferred"],
     "reference_hosts": ["diagrams.example.org"],
     "coverage": {
@@ -118,7 +118,7 @@ no section is exit `2`.
 | `owner_pattern`     | anchored regular expression for the accountable principal (`owner.principal` and the top-level `owner`). Only this document type has one — a requirements matrix's `owner` carries routing alone |
 | `document_statuses` | non-empty list of allowed top-level `status` values (`^[a-z][a-z0-9-]*$`) |
 | `control_statuses`  | non-empty list of allowed `controls[].status` values                  |
-| `evidence_levels`   | non-empty list of allowed `planned_evidence[].level` values           |
+| `evidence_levels`   | non-empty list of allowed `planned_evidence[].level` values. Separate from the requirements section's `verification_levels`: different document types, unrelated vocabularies, neither derived from the other |
 | `evidence_statuses` | non-empty list of allowed `planned_evidence[].status` values          |
 | `reference_hosts`   | optional list of lowercase multi-label DNS names; hosts an external reference may use |
 | `coverage`          | boolean switches for the declared-entity coverage rules; see below    |
