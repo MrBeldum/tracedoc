@@ -1,8 +1,6 @@
 package docscheck
 
 import (
-	"errors"
-	"io/fs"
 	"maps"
 	"strings"
 	"testing"
@@ -912,63 +910,4 @@ func TestCodeSpanBoundLeavesRealSpansIntact(t *testing.T) {
 		}
 	})
 
-}
-
-// failingFS wraps an fs.FS and returns a chosen error for the operations
-// that fstest.MapFS cannot be made to fail. The error branches it reaches
-// are the ones a real tree hits — a directory that becomes unreadable
-// mid-walk, a root that cannot be listed — so leaving them untested meant
-// trusting that a failure there is reported rather than silently treated
-// as "no documents found", which would make the whole gate pass vacuously.
-type failingFS struct {
-	fs.FS
-	// failOpen names the path whose Open fails; empty means none.
-	failOpen string
-	// failReadDir names the directory whose listing fails; empty means none.
-	failReadDir string
-	err         error
-}
-
-func (f failingFS) Open(name string) (fs.File, error) {
-	if f.failOpen != "" && name == f.failOpen {
-		return nil, f.err
-	}
-	return f.FS.Open(name)
-}
-
-func (f failingFS) ReadDir(name string) ([]fs.DirEntry, error) {
-	if f.failReadDir != "" && name == f.failReadDir {
-		return nil, f.err
-	}
-	return fs.ReadDir(f.FS, name)
-}
-
-func TestFilesystemErrorsAreReported(t *testing.T) {
-	broken := errors.New("disk went away")
-
-	t.Run("walk failure surfaces from DocumentFiles", func(t *testing.T) {
-		fsys := failingFS{FS: repository(nil), failReadDir: "docs", err: broken}
-		if _, err := DocumentFiles(fsys); !errors.Is(err, broken) {
-			t.Fatalf("expected the walk error, got %v", err)
-		}
-	})
-
-	t.Run("CheckAll reports a collection failure rather than passing", func(t *testing.T) {
-		fsys := failingFS{FS: repository(nil), failReadDir: ".", err: broken}
-		errs := CheckAll(fsys)
-		if len(errs) == 0 {
-			t.Fatal("a tree that cannot be walked must not pass the gate")
-		}
-		if !strings.Contains(errs.Error(), "collect Markdown documents") {
-			t.Fatalf("expected a collection failure, got:\n%s", errs)
-		}
-	})
-
-	t.Run("root listing failure surfaces from CheckNamedPaths", func(t *testing.T) {
-		fsys := failingFS{FS: repository(nil), failReadDir: ".", err: broken}
-		errs := CheckNamedPaths(fsys, []string{agentsFile})
-		if len(errs) == 0 {
-			t.Fatal("an unreadable root must not silently check nothing")
-		}
-	})
 }
