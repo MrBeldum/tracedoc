@@ -941,9 +941,15 @@ func TestCodeSpanScanBoundsOversizedCandidateRun(t *testing.T) {
 
 // TestCodeSpanRunLengthsMustMatchExactly pins the distinction the bounded
 // measurement has to preserve. Measuring a candidate run only far enough
-// to tell it from an exact match means the closing rule is now enforced by
-// a length limit rather than by a full count, so a run one backtick too
+// to tell it from an exact match means the closing rule is enforced by a
+// length limit rather than by a full count, so a run one backtick too
 // long has to stay a non-match.
+//
+// The last three cases guard the trap that shape sets. A measurement that
+// stops at the limit stops inside the run, and a search that resumed
+// there would read the remainder as a run of its own: a run of five
+// backticks would close a two-backtick opening on its last two, silently
+// pulling whatever lay between into a code span and out of the checks.
 func TestCodeSpanRunLengthsMustMatchExactly(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -954,6 +960,9 @@ func TestCodeSpanRunLengthsMustMatchExactly(t *testing.T) {
 		{"longer candidate does not close", "``x```", false},
 		{"shorter candidate does not close", "``x`", false},
 		{"longer candidate before an equal one", "`x``x`", true},
+		{"run far longer than the opening", "``x`````", false},
+		{"run three times the opening", "`x```", false},
+		{"remainder of a long run is not a new run", "```x```````", false},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -963,6 +972,36 @@ func TestCodeSpanRunLengthsMustMatchExactly(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCodeSpanClosesOnTheLastOfTheBudget pins the other edge of the
+// bounded measurement. A closing run that lands exactly where the budget
+// runs out is still a closing run, so the measurement reads one backtick
+// past the opening length even when the budget cannot cover it: a
+// candidate capped at the budget would be indistinguishable from a longer
+// run, and calling that unmatched would turn a legitimate span into
+// literal text a few bytes short of the documented ceiling.
+//
+// The second case is why the first cannot simply be waved through. At the
+// same offset, a run longer than the opening must still fail to close.
+func TestCodeSpanClosesOnTheLastOfTheBudget(t *testing.T) {
+	const opening = 3
+	filler := strings.Repeat("x", maxCodeSpanScanBytes-opening)
+	run := strings.Repeat("`", opening)
+
+	t.Run("an exact run on the last of the budget closes", func(t *testing.T) {
+		line := run + filler + run
+		if _, _, ok := codeSpanEnd([]string{line}, 0, 0); !ok {
+			t.Fatal("a closing run reached within the budget must still close")
+		}
+	})
+
+	t.Run("a longer run on the last of the budget does not", func(t *testing.T) {
+		line := run + filler + run + "``"
+		if _, _, ok := codeSpanEnd([]string{line}, 0, 0); ok {
+			t.Fatal("a run longer than the opening must never close it")
+		}
+	})
 }
 
 // TestCodeSpanBoundLeavesRealSpansIntact is the other half: the ceiling

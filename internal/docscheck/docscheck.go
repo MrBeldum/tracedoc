@@ -837,18 +837,33 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 			// Measuring only far enough to tell an exact match from a
 			// longer run is what keeps one oversized run inside the
 			// budget: reading the run whole would spend its full length
-			// before the check above ever saw the cost, and the runs
-			// that precede it each repeat that read.
-			limit := opening + 1
-			if limit > budget {
-				limit = budget
-			}
-			run := leadingRunAtMost(line[scan:], '`', limit)
-			if run == opening && run < limit {
+			// before the check above ever saw the cost, and every run
+			// that precedes it repeats that read.
+			//
+			// The limit is not clamped to the remaining budget. Doing so
+			// would leave a run of exactly opening backticks
+			// indistinguishable from a longer one, and the cheap reading
+			// -- calling it unmatched -- turns a closing run that lands
+			// on the last of the budget into literal text. Reading one
+			// past opening costs at most the opening run's own length,
+			// once per call, against a budget the next iteration is
+			// about to find spent.
+			run := leadingRunAtMost(line[scan:], '`', opening+1)
+			if run == opening {
 				return cursor, scan + opening, true
 			}
 			scan += run
 			budget -= run
+			// A measurement that stopped at the limit may have stopped
+			// inside the run rather than at its end, so the remainder is
+			// stepped over here. Resuming the search at that offset
+			// instead would read what is left as a run of its own and
+			// could take its tail for the closing one: ``x````` would
+			// close on the last two backticks of a run of five.
+			for budget > 0 && scan < len(line) && line[scan] == '`' {
+				scan++
+				budget--
+			}
 		}
 	}
 	return 0, 0, false
@@ -860,9 +875,11 @@ func leadingRun(value string, char byte) int {
 }
 
 // leadingRunAtMost counts the leading repetitions of char in value,
-// stopping once limit of them have been seen. A caller that only needs to
+// stopping once it has counted limit of them. A caller that only needs to
 // tell one exact length from every greater one then pays for the length
-// it asked about rather than for the run it was handed.
+// it asked about rather than for the run it was handed, but it gets back
+// a count that may sit inside a run rather than at its end, and has to
+// step over the remainder itself.
 func leadingRunAtMost(value string, char byte, limit int) int {
 	run := 0
 	for run < limit && run < len(value) && value[run] == char {
