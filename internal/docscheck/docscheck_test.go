@@ -1,6 +1,8 @@
 package docscheck
 
 import (
+	"errors"
+	"io/fs"
 	"maps"
 	"strings"
 	"testing"
@@ -101,6 +103,44 @@ func repository(overrides map[string]string) fstest.MapFS {
 		fsys[name] = &fstest.MapFile{Data: []byte(data)}
 	}
 	return fsys
+}
+
+// errUnreadable is the failure unreadableRepository injects. The tests
+// assert on it by identity where the error is returned and by its message
+// where a check turns it into a finding, so a report that names it proves
+// the cause was carried out to the reader rather than replaced with a
+// generic one along the way.
+var errUnreadable = errors.New("simulated I/O failure")
+
+// unreadableRepository is the fixture repository with one directory that
+// cannot be read. fstest.MapFS alone cannot reach the checks' filesystem
+// error branches: every path in a MapFS either exists or is cleanly
+// absent, and a missing directory is not an error the walk reports. A
+// repository whose tree becomes unreadable mid-check is what those
+// branches are for, so the tests manufacture one.
+//
+// Only ReadDir is intercepted, because it is the single call all three
+// branches pass through: fs.WalkDir reads each directory as it descends,
+// and rootEntries reads the root directly. Everything else — Open, Stat,
+// the file contents — is the embedded fixture, unchanged.
+type unreadableRepository struct {
+	fstest.MapFS
+
+	// dir is the directory whose ReadDir fails, "." for the repository
+	// root.
+	dir string
+}
+
+func (r unreadableRepository) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == r.dir {
+		return nil, errUnreadable
+	}
+	return r.MapFS.ReadDir(name)
+}
+
+// unreadable builds the fixture repository with dir unreadable.
+func unreadable(dir string) unreadableRepository {
+	return unreadableRepository{MapFS: repository(nil), dir: dir}
 }
 
 // checkAll runs every check over the fixture repository with overrides
@@ -545,6 +585,60 @@ func TestUnreadableAndMalformedInputsAreReported(t *testing.T) {
 	t.Run("a toolVersion that is not a string literal", func(t *testing.T) {
 		errs := checkAll(t, map[string]string{"cmd/tracedoc/main.go": "package main\n\nconst toolVersion = 42\n"})
 		requireReport(t, errs, "toolVersion constant", "is not a string literal")
+	})
+}
+
+// TestAnUnreadableTreeIsReportedRatherThanIgnored covers what the checks
+// do when the repository itself cannot be read, which no missing or
+// malformed file produces: a directory that fails on ReadDir. The
+// distinction matters because an unreadable tree makes a check's silence
+// meaningless — no documents collected reads exactly like no drift found
+// — so each of these branches has to fail loudly instead.
+func TestAnUnreadableTreeIsReportedRatherThanIgnored(t *testing.T) {
+	t.Run("a directory that fails part way through the walk", func(t *testing.T) {
+		files, err := DocumentFiles(unreadable("docs"))
+		if !errors.Is(err, errUnreadable) {
+			t.Fatalf("collect documents = %v, want %v", err, errUnreadable)
+		}
+		if files != nil {
+			t.Errorf("document set = %v, want none alongside the error", files)
+		}
+	})
+
+	t.Run("a repository root that cannot be listed", func(t *testing.T) {
+		files, err := DocumentFiles(unreadable("."))
+		if !errors.Is(err, errUnreadable) {
+			t.Fatalf("collect documents = %v, want %v", err, errUnreadable)
+		}
+		if files != nil {
+			t.Errorf("document set = %v, want none alongside the error", files)
+		}
+	})
+
+	t.Run("a root that stops CheckAll at document collection", func(t *testing.T) {
+		errs := CheckAll(unreadable("."))
+		requireOnlyReport(t, errs, "collect Markdown documents", errUnreadable.Error())
+	})
+
+	t.Run("a root that CheckNamedPaths cannot list", func(t *testing.T) {
+		// Called directly rather than through CheckAll, which cannot
+		// reach this branch: the same unreadable root stops it at
+		// document collection first.
+		errs := CheckNamedPaths(unreadable("."), []string{"README.md"})
+		requireOnlyReport(t, errs, "read repository root", errUnreadable.Error())
+	})
+
+	t.Run("a skipped directory, which is never read at all", func(t *testing.T) {
+		// The boundary of the three cases above. fs.WalkDir offers each
+		// directory to the callback before reading it, so a directory
+		// DocumentFiles skips is never a directory it can fail on --
+		// which is why an unreadable testdata or dist cannot break the
+		// walk. Reversing that order in DocumentFiles would make the
+		// skip list depend on directories it deliberately does not read,
+		// and nothing else here would notice.
+		if _, err := DocumentFiles(unreadable("testdata")); err != nil {
+			t.Fatalf("collect documents = %v, want no error for a skipped directory", err)
+		}
 	})
 }
 
