@@ -615,17 +615,30 @@ func TestAnUnreadableTreeIsReportedRatherThanIgnored(t *testing.T) {
 		}
 	})
 
-	t.Run("CheckAll reports a failure to collect documents", func(t *testing.T) {
+	t.Run("a root that stops CheckAll at document collection", func(t *testing.T) {
 		errs := CheckAll(unreadable("."))
 		requireOnlyReport(t, errs, "collect Markdown documents", errUnreadable.Error())
 	})
 
-	t.Run("CheckNamedPaths reports an unreadable repository root", func(t *testing.T) {
+	t.Run("a root that CheckNamedPaths cannot list", func(t *testing.T) {
 		// Called directly rather than through CheckAll, which cannot
 		// reach this branch: the same unreadable root stops it at
 		// document collection first.
 		errs := CheckNamedPaths(unreadable("."), []string{"README.md"})
 		requireOnlyReport(t, errs, "read repository root", errUnreadable.Error())
+	})
+
+	t.Run("a skipped directory, which is never read at all", func(t *testing.T) {
+		// The boundary of the three cases above. fs.WalkDir offers each
+		// directory to the callback before reading it, so a directory
+		// DocumentFiles skips is never a directory it can fail on --
+		// which is why an unreadable testdata or dist cannot break the
+		// walk. Reversing that order in DocumentFiles would make the
+		// skip list depend on directories it deliberately does not read,
+		// and nothing else here would notice.
+		if _, err := DocumentFiles(unreadable("testdata")); err != nil {
+			t.Fatalf("collect documents = %v, want no error for a skipped directory", err)
+		}
 	})
 }
 
