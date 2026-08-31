@@ -1,10 +1,13 @@
 package docscheck
 
 import (
+	"errors"
+	"io/fs"
 	"maps"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 // The fixture repository is a miniature of this one: the same file
@@ -848,4 +851,124 @@ func TestDocumentFilesSkipsFixturesAndToolDirectories(t *testing.T) {
 	if len(files) == 0 {
 		t.Fatal("document set is empty")
 	}
+}
+
+// TestCodeSpanScanIsBounded is the regression test for the cost curve that
+// motivated maxCodeSpanScanBytes. A paragraph of backtick runs that never
+// close makes each run search everything after it, so the work grows with
+// the cube of the run count.
+//
+// A wall-clock assertion is ordinarily a poor shape for a test, and is
+// used here because the defect was a growth rate rather than a wrong
+// answer. The size was chosen by measuring both regimes rather than
+// guessing: at 3000 runs the unbounded scan takes 4.4 s, which a five
+// second ceiling does not reliably separate from anything — an earlier
+// version of this test passed with the bound removed. At 6000 runs the
+// same input costs 61 ms bounded and 35 s unbounded, so the ceiling below
+// sits eighty times above the passing time and seven times beneath the
+// failing one.
+//
+// Scanning starts at each run rather than at each backtick, which is how
+// readCodeSpan actually calls it.
+func TestCodeSpanScanIsBounded(t *testing.T) {
+	var builder strings.Builder
+	for run := 1; run <= 6000; run++ {
+		builder.WriteString(strings.Repeat("`", run))
+		builder.WriteString("x")
+	}
+	line := builder.String()
+	lines := []string{line}
+
+	start := time.Now()
+	for index := 0; index < len(line); {
+		if line[index] != '`' {
+			index++
+			continue
+		}
+		codeSpanEnd(lines, 0, index)
+		index += leadingRun(line[index:], '`')
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("scanning %d bytes of unclosed runs took %v", len(line), elapsed)
+	}
+}
+
+// TestCodeSpanBoundLeavesRealSpansIntact is the other half: the ceiling
+// must be unreachable by anything a document would legitimately contain.
+// A span just under the bound still closes; one past it is left as literal
+// text, which is exactly what an unmatched run already becomes.
+func TestCodeSpanBoundLeavesRealSpansIntact(t *testing.T) {
+	t.Run("span just inside the bound closes", func(t *testing.T) {
+		line := "`" + strings.Repeat("x", maxCodeSpanScanBytes-16) + "`"
+		if _, _, ok := codeSpanEnd([]string{line}, 0, 0); !ok {
+			t.Fatal("a span within the bound must still close")
+		}
+	})
+
+	t.Run("span past the bound is literal text", func(t *testing.T) {
+		line := "`" + strings.Repeat("x", maxCodeSpanScanBytes+16) + "`"
+		if _, _, ok := codeSpanEnd([]string{line}, 0, 0); ok {
+			t.Fatal("a span past the bound must be left unclosed")
+		}
+	})
+
+}
+
+// failingFS wraps an fs.FS and returns a chosen error for the operations
+// that fstest.MapFS cannot be made to fail. The error branches it reaches
+// are the ones a real tree hits — a directory that becomes unreadable
+// mid-walk, a root that cannot be listed — so leaving them untested meant
+// trusting that a failure there is reported rather than silently treated
+// as "no documents found", which would make the whole gate pass vacuously.
+type failingFS struct {
+	fs.FS
+	// failOpen names the path whose Open fails; empty means none.
+	failOpen string
+	// failReadDir names the directory whose listing fails; empty means none.
+	failReadDir string
+	err         error
+}
+
+func (f failingFS) Open(name string) (fs.File, error) {
+	if f.failOpen != "" && name == f.failOpen {
+		return nil, f.err
+	}
+	return f.FS.Open(name)
+}
+
+func (f failingFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if f.failReadDir != "" && name == f.failReadDir {
+		return nil, f.err
+	}
+	return fs.ReadDir(f.FS, name)
+}
+
+func TestFilesystemErrorsAreReported(t *testing.T) {
+	broken := errors.New("disk went away")
+
+	t.Run("walk failure surfaces from DocumentFiles", func(t *testing.T) {
+		fsys := failingFS{FS: repository(nil), failReadDir: "docs", err: broken}
+		if _, err := DocumentFiles(fsys); !errors.Is(err, broken) {
+			t.Fatalf("expected the walk error, got %v", err)
+		}
+	})
+
+	t.Run("CheckAll reports a collection failure rather than passing", func(t *testing.T) {
+		fsys := failingFS{FS: repository(nil), failReadDir: ".", err: broken}
+		errs := CheckAll(fsys)
+		if len(errs) == 0 {
+			t.Fatal("a tree that cannot be walked must not pass the gate")
+		}
+		if !strings.Contains(errs.Error(), "collect Markdown documents") {
+			t.Fatalf("expected a collection failure, got:\n%s", errs)
+		}
+	})
+
+	t.Run("root listing failure surfaces from CheckNamedPaths", func(t *testing.T) {
+		fsys := failingFS{FS: repository(nil), failReadDir: ".", err: broken}
+		errs := CheckNamedPaths(fsys, []string{agentsFile})
+		if len(errs) == 0 {
+			t.Fatal("an unreadable root must not silently check nothing")
+		}
+	})
 }

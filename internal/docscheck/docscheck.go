@@ -32,12 +32,14 @@
 //     live Markdown. A repository path or a link quoted inside such a
 //     span is therefore never checked. No multi-line span appears in
 //     this repository's documentation today.
-//   - A backtick run that never closes is scanned to the end of its
-//     paragraph, so a paragraph built entirely of such runs costs more
-//     than linear time. Checking this repository's real tree takes a few
-//     tens of milliseconds, and the growth starts to matter only for a
-//     crafted document orders of magnitude larger than the tree itself.
-//     Bounding the scan is tracked separately.
+//   - A backtick run's search for its closing run gives up after
+//     maxCodeSpanScanBytes, leaving the run as literal text. That is what
+//     an unmatched run already becomes, so the ceiling changes no
+//     behavior a real document can observe: it takes a span longer than
+//     the bound to reach one, and the longest in this repository is two
+//     orders of magnitude below it. Without the ceiling, a paragraph
+//     built entirely of never-closing runs costs superlinear time,
+//     because each run rescans the rest of the paragraph.
 //   - Indented (non-fenced) code blocks are not treated as examples. Every
 //     example here uses a fence.
 //   - The checks trust the working tree's file identity, not only its path
@@ -74,6 +76,21 @@ const (
 	ciWorkflowFile      = ".github/workflows/ci.yml"
 	releaseWorkflowFile = ".github/workflows/release.yml"
 )
+
+// maxCodeSpanScanBytes bounds how far one backtick run may search for the
+// run that closes it. Beyond the bound the run is left as literal text —
+// the same outcome an unmatched run already produces, so nothing a real
+// document can express changes: reaching the ceiling needs a single code
+// span longer than 8 KiB, where the longest in this repository is under a
+// hundred bytes.
+//
+// The ceiling exists because the search is per run: a paragraph of runs
+// that never close makes each one rescan everything after it. Measured
+// before the bound, a paragraph of runs of increasing length cost 163 ms
+// at 20 KB, 1.8 s at 81 KB, and 26.7 s at 321 KB — a shape that would
+// spend a CI job's whole budget inside one paragraph and surface as a
+// timeout rather than as a named failure.
+const maxCodeSpanScanBytes = 8 << 10
 
 // selfCheckStep is the workflow step whose command list AGENTS.md declares
 // authoritative.
@@ -799,6 +816,7 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 	}
 	opening := leadingRun(lines[index][position:], '`')
 	scan := position + opening
+	budget := maxCodeSpanScanBytes
 	for cursor := index; cursor < len(lines); cursor++ {
 		if cursor > index {
 			if strings.TrimSpace(lines[cursor]) == "" {
@@ -808,8 +826,12 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 		}
 		line := lines[cursor]
 		for scan < len(line) {
+			if budget <= 0 {
+				return 0, 0, false
+			}
 			if line[scan] != '`' {
 				scan++
+				budget--
 				continue
 			}
 			run := leadingRun(line[scan:], '`')
@@ -817,6 +839,7 @@ func codeSpanEnd(lines []string, index, position int) (endIndex, endPosition int
 				return cursor, scan + opening, true
 			}
 			scan += run
+			budget -= run
 		}
 	}
 	return 0, 0, false
