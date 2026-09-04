@@ -236,11 +236,21 @@ func CheckNamedPaths(fsys fs.FS, files []string) check.Errors {
 					continue
 				}
 				if _, err := fs.Stat(fsys, strings.TrimSuffix(target, "/")); err != nil {
-					checker.Addf(
-						fmt.Sprintf("%s:%d", file, index+1),
-						"names %q, which does not exist in the repository",
-						candidate,
-					)
+					location := fmt.Sprintf("%s:%d", file, index+1)
+					if errors.Is(err, fs.ErrNotExist) {
+						checker.Addf(
+							location,
+							"names %q, which does not exist in the repository",
+							candidate,
+						)
+					} else {
+						checker.Addf(
+							location,
+							"names %q, which cannot be read: %v",
+							candidate,
+							err,
+						)
+					}
 				}
 			}
 		}

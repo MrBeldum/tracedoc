@@ -145,13 +145,14 @@ func unreadable(dir string) unreadableRepository {
 
 // unstattableRepository is the fixture repository with one path whose
 // Stat fails with a non-ErrNotExist error. fstest.MapFS alone cannot
-// reach CheckLinks' non-missing Stat-error branch: every path either
-// exists or is cleanly absent. A path that exists but cannot be stated
-// is what that branch is for, so the tests manufacture one.
+// reach the non-missing Stat-error branches in CheckLinks and
+// CheckNamedPaths: every path either exists or is cleanly absent. A
+// path that exists but cannot be stated is what those branches are for,
+// so the tests manufacture one.
 //
 // Only Stat is intercepted. ReadDir, Open, and every other path behave
-// as the embedded fixture, so a CheckLinks call that never Stats the
-// injected path still passes.
+// as the embedded fixture, so a check that never Stats the injected
+// path still passes.
 type unstattableRepository struct {
 	fstest.MapFS
 
@@ -492,6 +493,26 @@ func TestCheckNamedPaths(t *testing.T) {
 			"README.md": "# tracedoc\n\nSources live in `internal/docscheck/` and `cmd/tracedoc/main.go`.\n",
 		})
 		requireClean(t, errs)
+	})
+
+	// Called through CheckNamedPaths rather than CheckAll: AGENTS.md already
+	// names `.github/workflows/`, and intercepting only that path's Stat
+	// isolates the branch under test from unrelated checks.
+	t.Run("a named path that cannot be stated reports the underlying error", func(t *testing.T) {
+		errs := CheckNamedPaths(unstattable(".github/workflows"), []string{"AGENTS.md"})
+		requireOnlyReport(t, errs, "AGENTS.md:3", ".github/workflows/", "cannot be read", errUnreadable.Error())
+		for _, err := range errs {
+			if strings.Contains(err, "does not exist") {
+				t.Fatalf("Stat failure reported as missing: %v", errs)
+			}
+		}
+	})
+
+	t.Run("a genuinely missing named path keeps the missing-file message", func(t *testing.T) {
+		errs := CheckNamedPaths(repository(map[string]string{
+			"README.md": "# tracedoc\n\nThe entry point is `cmd/tracedoc/cli.go`.\n",
+		}), []string{"README.md"})
+		requireOnlyReport(t, errs, "README.md:3", "cmd/tracedoc/cli.go", "does not exist in the repository")
 	})
 }
 
