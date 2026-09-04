@@ -143,6 +143,34 @@ func unreadable(dir string) unreadableRepository {
 	return unreadableRepository{MapFS: repository(nil), dir: dir}
 }
 
+// unstattableRepository is the fixture repository with one path whose
+// Stat fails with a non-ErrNotExist error. fstest.MapFS alone cannot
+// reach CheckLinks' non-missing Stat-error branch: every path either
+// exists or is cleanly absent. A path that exists but cannot be stated
+// is what that branch is for, so the tests manufacture one.
+//
+// Only Stat is intercepted. ReadDir, Open, and every other path behave
+// as the embedded fixture, so a CheckLinks call that never Stats the
+// injected path still passes.
+type unstattableRepository struct {
+	fstest.MapFS
+
+	// path is the name whose Stat fails.
+	path string
+}
+
+func (r unstattableRepository) Stat(name string) (fs.FileInfo, error) {
+	if name == r.path {
+		return nil, errUnreadable
+	}
+	return r.MapFS.Stat(name)
+}
+
+// unstattable builds the fixture repository with path unstattable.
+func unstattable(path string) unstattableRepository {
+	return unstattableRepository{MapFS: repository(nil), path: path}
+}
+
 // checkAll runs every check over the fixture repository with overrides
 // applied.
 func checkAll(t *testing.T, overrides map[string]string) []string {
@@ -417,6 +445,26 @@ func TestCheckLinks(t *testing.T) {
 				"```md\n[text](docs/also-nowhere.md)\n```\n",
 		})
 		requireClean(t, errs)
+	})
+
+	// Called through CheckLinks rather than CheckAll: the default fixture
+	// README already links to docs/cli.md, and intercepting only that
+	// path's Stat isolates the branch under test from unrelated checks.
+	t.Run("a link target that cannot be stated reports the underlying error", func(t *testing.T) {
+		errs := CheckLinks(unstattable("docs/cli.md"), []string{"README.md"})
+		requireOnlyReport(t, errs, "README.md:3", "docs/cli.md", "cannot be read", errUnreadable.Error())
+		for _, err := range errs {
+			if strings.Contains(err, "does not exist") {
+				t.Fatalf("Stat failure reported as missing: %v", errs)
+			}
+		}
+	})
+
+	t.Run("a genuinely missing link target keeps the missing-file message", func(t *testing.T) {
+		errs := CheckLinks(repository(map[string]string{
+			"README.md": "# tracedoc\n\nSee [the guide](docs/guide.md).\n",
+		}), []string{"README.md"})
+		requireOnlyReport(t, errs, "README.md:3", "docs/guide.md", "points at a file that does not exist")
 	})
 }
 
